@@ -130,3 +130,56 @@ These will be completed in the next iteration. The most critical docs (audits, a
 3. Install Playwright + write critical e2e
 4. Implement NextAuth authentication (ADR-006)
 5. Add zod validation to all 18 routes
+
+---
+
+## Phase 2 Round 2 — Testing Infrastructure + Spec Docs (2026-06-29)
+
+### Current Project Status Assessment
+Phase 2 (Architecture Stabilization) continues. The app is stable: 12 views, 18 API routes, 22 Prisma models, premium emerald UI, agent-browser verified. Server runs with a keepalive auto-restart loop (sandbox kills background processes after ~30s). Lint clean (0 errors). All APIs return 200.
+
+### Completed This Round
+
+#### 1. Testing Infrastructure — Vitest Installed + 138 Unit Tests
+- **Installed:** `vitest@4.1.9`, `@vitest/coverage-v8@4.1.9`, `@vitejs/plugin-react@6.0.3`
+- **Config:** `vitest.config.ts` — node environment, globals, per-file coverage thresholds on pure libs (95% lines/functions, 90% branches)
+- **Scripts added:** `test`, `test:watch`, `test:coverage`
+- **Test files written (4 files, 138 tests, all passing):**
+  - `src/lib/gst.test.ts` — 64 tests, **100% coverage** (lines/branches/functions/statements). Covers: r2 rounding, computeLine (intra/inter, all GST rates, discounts, edge cases), computeDocument (aggregation, round-off, empty), isValidGstin (format, normalization, rejection), stateCodeFromGstin, deriveSupplyType, GST_RATES, INDIAN_STATES, real-world integration scenarios.
+  - `src/lib/format.test.ts` — 55 tests, **99% coverage**. Covers: formatINR (Indian grouping, null/NaN), formatINRCompact, formatNumber, formatQty, formatDate/Short/DateTime, relativeTime (fake timers), amountInWords (crore/lakh/thousand/paise/negative), initials.
+  - `src/lib/utils.test.ts` — 6 tests, **100% coverage**. Covers: cn() class merge (dedup, conditional, arrays).
+  - `src/lib/nav.test.ts` — 13 tests, **100% coverage**. Covers: NAV_ITEMS structure, visibleNavItems module filtering.
+- **Coverage report:** `gst.ts 100%`, `format.ts 99%`, `utils.ts 100%`, `nav.ts 100%`. Overall: 99.38% statements, 100% functions, 100% lines.
+- **Verification:** `bun run test` → 138 passed. `bun run test:coverage` → all thresholds met.
+
+#### 2. Spec Documentation (5 new docs, total 19 spec docs + 10 ADRs)
+- **16_TESTING_GUIDE.md** — Testing philosophy (pyramid), infrastructure (Vitest/Playwright/axe/Lighthouse), coverage targets per module, unit test patterns, e2e plan (10 critical scenarios), CI pipeline spec, best practices.
+- **09_PERMISSION_MATRIX.md** — 13 roles × 9 actions × 13 modules. Full RBAC matrix. Implementation spec for `requireRole` middleware. Custom roles + multi-business (Phase 5).
+- **10_BUSINESS_RULES.md** — Domain logic: invoice numbering/statuses/types, supply type, rounding, stock impact, payment linkage; purchase, quotation (with convert-to-invoice), inventory (batch/expiry/serial), party outstanding, payment modes, GST rules, accounting (Dr/Cr ledger, P&L), notifications, audit log immutability, validation rules (GSTIN/PAN/phone/pincode).
+- **04_API_SPECIFICATION.md** — All 18 endpoints documented: conventions, envelope (Phase 3 target), error codes, query params, per-endpoint request/response shapes, rate limiting plan, pagination plan.
+- **03_DATABASE_SPECIFICATION.md** — All 22 models documented with fields/types/indexes. ER diagram (textual). Data types (Float→Decimal migration note). Cascade rules. Migration plan. Seed data. Backup/restore.
+
+### Verification Results
+- **Tests:** 138/138 passing ✅
+- **Coverage:** gst.ts 100%, format.ts 99%, utils.ts 100%, nav.ts 100% ✅
+- **Lint:** 0 errors, 6 warnings (unused eslint-disable directives) ✅
+- **Server:** 200 homepage, 200 dashboard-api (50ms) ✅
+- **Docs:** 19 spec docs + 10 ADRs = 29 markdown files in /docs/ ✅
+
+### Unresolved Issues / Risks
+1. **No auth** — single-tenant demo (P0: AUTH-001 in backlog)
+2. **No input validation** — 0 zod schemas (P0: VALID-001)
+3. **Float money storage** — 78 Float columns (P0: MONEY-001)
+4. **No migrations** — `db:push` only (P0: MIGRATE-001)
+5. **Server keepalive needed** — sandbox kills background processes; keepalive loop runs but may be killed itself
+6. **Remaining spec docs** (9 of 21): 01_PRD, 05_DESIGN_SYSTEM, 06_COMPONENT_LIBRARY, 07_UI_SCREEN_SPECIFICATION, 08_USER_FLOWS, 12_INVENTORY_ENGINE, 13_ACCOUNTING_ENGINE, 14_PERFORMANCE_GUIDE, 15_SECURITY_GUIDE
+7. **No Playwright e2e yet** — Vitest unit tests done; Playwright install + e2e scenarios pending
+8. **No CI pipeline** — GitHub Actions not set up
+
+### Next-Phase Priority Recommendations
+1. Write remaining 9 spec docs (priority: 05_DESIGN_SYSTEM, 15_SECURITY_GUIDE, 14_PERFORMANCE_GUIDE)
+2. Install Playwright + write 10 critical e2e scenarios (invoice create→pay→view, POS checkout, quotation→convert)
+3. Add axe-core accessibility tests
+4. Implement NextAuth authentication (ADR-006)
+5. Add zod validation to all 18 API routes
+6. Set up GitHub Actions CI (lint, typecheck, unit, e2e, coverage gate)
