@@ -1,0 +1,618 @@
+// MedBill — Production GST Billing ERP schema
+// SQLite via Prisma. Enums are encoded as String for SQLite compatibility.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// Auth & Tenancy
+// ─────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  phone         String?
+  passwordHash  String?
+  avatarUrl     String?
+  authProvider  String   @default("email") // email | google | phone
+  status        String   @default("active") // active | suspended
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  memberships   BusinessMember[]
+  sessions      Session[]
+  auditLogs     AuditLog[]
+  ownedBusinesses Business[] @relation("BusinessOwner")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  deviceInfo   String?
+  ip           String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  revokedAt    DateTime?
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Business {
+  id            String   @id @default(cuid())
+  name          String
+  legalName     String?
+  gstin         String?
+  pan           String?
+  industry      String   @default("retail")
+  businessType  String   @default("proprietorship")
+  logoUrl       String?
+  email         String?
+  phone         String?
+  website       String?
+  addressLine1  String?
+  addressLine2  String?
+  city          String?
+  state         String?
+  stateCode     String? // first 2 digits of GSTIN
+  pincode       String?
+  country       String   @default("India")
+  currency      String   @default("INR")
+  // Onboarding flags — drive adaptive UI
+  modules       String   @default("{}") // JSON: {pos,inventory,gst,payroll,crm,manufacturing,expiry,batch,serial,barcode,onlineStore}
+  inventoryMode String   @default("inventory_heavy") // inventory_heavy | service_heavy | no_inventory
+  storeMode     String   @default("single") // single | multi
+  employeeCount Int      @default(1)
+  invoicePrefix String   @default("INV")
+  invoiceSeq    Int      @default(1)
+  quotationPrefix String @default("QT")
+  quotationSeq  Int      @default(1)
+  fyStartMonth  Int      @default(4) // April
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  owner         User     @relation("BusinessOwner", fields: [ownerId], references: [id])
+  ownerId       String
+  members       BusinessMember[]
+  branches      Branch[]
+  parties       Party[]
+  products      Product[]
+  categories    Category[]
+  units         Unit[]
+  taxes         TaxRate[]
+  warehouses    Warehouse[]
+  invoices      Invoice[]
+  purchases     Purchase[]
+  quotations    Quotation[]
+  expenses      Expense[]
+  payments      Payment[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+
+  @@index([ownerId])
+}
+
+model BusinessMember {
+  id         String   @id @default(cuid())
+  businessId String
+  userId     String
+  role       String   @default("owner") // owner|partner|manager|cashier|sales|purchase|accountant|store_keeper|warehouse_manager|delivery|employee|auditor|ca
+  status     String   @default("active")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, userId])
+  @@index([userId])
+}
+
+model Branch {
+  id          String   @id @default(cuid())
+  businessId  String
+  name        String
+  code        String?
+  isHead      Boolean  @default(false)
+  gstin       String?
+  addressLine1 String?
+  city        String?
+  state       String?
+  stateCode   String?
+  pincode     String?
+  phone       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  warehouses  Warehouse[]
+  invoices    Invoice[]
+  purchases   Purchase[]
+
+  @@index([businessId])
+}
+
+// ─────────────────────────────────────────────
+// Master Data
+// ─────────────────────────────────────────────
+
+model Category {
+  id          String   @id @default(cuid())
+  businessId  String
+  name        String
+  parentId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  parent      Category? @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryTree")
+  products    Product[]
+
+  @@index([businessId, parentId])
+}
+
+model Unit {
+  id          String   @id @default(cuid())
+  businessId  String
+  name        String // e.g. Pcs, Kg, Box
+  symbol      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  products    Product[]
+
+  @@unique([businessId, name])
+}
+
+model TaxRate {
+  id          String   @id @default(cuid())
+  businessId  String
+  name        String   // "GST 18%"
+  rate        Float    // 18.0
+  cgst        Float    @default(9.0)
+  sgst        Float    @default(9.0)
+  igst        Float    @default(18.0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  products    Product[]
+
+  @@unique([businessId, name])
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  businessId    String
+  name          String
+  sku           String?
+  barcode       String?
+  hsn           String?  // HSN/SAC code
+  categoryId    String?
+  unitId        String?
+  taxId         String?
+  taxRate       Float    @default(0) // effective GST % (cached)
+  purchasePrice Float    @default(0)
+  salePrice     Float    @default(0)
+  mrp           Float    @default(0)
+  wholesalePrice Float   @default(0)
+  minStock      Float    @default(0)
+  reorderLevel  Float    @default(0)
+  openingStock  Float    @default(0)
+  stock         Float    @default(0)
+  batchTracked  Boolean  @default(false)
+  expiryTracked Boolean  @default(false)
+  serialTracked Boolean  @default(false)
+  description   String?
+  image         String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category      Category? @relation(fields: [categoryId], references: [id])
+  unit          Unit?     @relation(fields: [unitId], references: [id])
+  tax           TaxRate?  @relation(fields: [taxId], references: [id])
+  invoiceItems  InvoiceItem[]
+  purchaseItems PurchaseItem[]
+  quotationItems QuotationItem[]
+  stockMovements StockMovement[]
+
+  @@index([businessId, name])
+  @@index([businessId, barcode])
+  @@index([businessId, sku])
+}
+
+model Warehouse {
+  id          String   @id @default(cuid())
+  businessId  String
+  branchId    String?
+  name        String
+  code        String?
+  address     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branch      Branch?   @relation(fields: [branchId], references: [id])
+  movements   StockMovement[]
+
+  @@index([businessId])
+}
+
+model StockMovement {
+  id          String   @id @default(cuid())
+  businessId  String
+  productId   String
+  warehouseId String?
+  type        String   // purchase | sale | transfer | adjustment | opening | return
+  direction   String   // in | out
+  quantity    Float
+  balanceAfter Float?
+  refType     String?  // invoice | purchase | manual
+  refId       String?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+
+  @@index([businessId, productId])
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────
+// Parties (Customers + Suppliers unified)
+// ─────────────────────────────────────────────
+
+model Party {
+  id           String   @id @default(cuid())
+  businessId   String
+  type         String   @default("customer") // customer | supplier | both
+  name         String
+  companyName  String?
+  gstin        String?
+  pan          String?
+  phone        String?
+  email        String?
+  whatsapp     String?
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  stateCode    String?
+  pincode      String?
+  openingBalance Float  @default(0) // positive = they owe us
+  creditLimit  Float    @default(0)
+  creditDays   Int      @default(0)
+  isBlacklisted Boolean @default(false)
+  tags         String?  // comma separated
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  invoices     Invoice[]
+  purchases    Purchase[]
+  payments     Payment[]
+  quotations   Quotation[]
+
+  @@index([businessId, type])
+  @@index([businessId, name])
+  @@index([businessId, phone])
+}
+
+// ─────────────────────────────────────────────
+// Sales / Invoices
+// ─────────────────────────────────────────────
+
+model Invoice {
+  id             String   @id @default(cuid())
+  businessId     String
+  branchId       String?
+  number         String   // human invoice no: INV-0001
+  seq            Int
+  type           String   @default("tax_invoice") // tax_invoice | pos | estimate | proforma | delivery_challan | credit_note | debit_note
+  status         String   @default("unpaid") // draft | unpaid | partial | paid | cancelled | overdue
+  partyId        String?
+  partyName      String   // snapshot
+  partyGstin     String?
+  partyStateCode String?
+  invoiceDate    DateTime
+  dueDate        DateTime?
+  supplyType     String   @default("intra") // intra | inter
+  // Totals (in paise-free rupees)
+  subtotal       Float    @default(0)
+  discountTotal  Float    @default(0)
+  taxableValue   Float    @default(0)
+  cgstTotal      Float    @default(0)
+  sgstTotal      Float    @default(0)
+  igstTotal      Float    @default(0)
+  cessTotal      Float    @default(0)
+  roundOff       Float    @default(0)
+  grandTotal     Float    @default(0)
+  paidAmount     Float    @default(0)
+  balance        Float    @default(0)
+  notes          String?
+  terms          String?
+  placeOfSupply  String?
+  createdBy       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  business       Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branch         Branch?   @relation(fields: [branchId], references: [id])
+  party          Party?    @relation(fields: [partyId], references: [id])
+  items          InvoiceItem[]
+  payments       Payment[]
+
+  @@unique([businessId, number])
+  @@index([businessId, invoiceDate])
+  @@index([businessId, status])
+  @@index([businessId, partyId])
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  productId   String?
+  name        String   // snapshot
+  hsn         String?
+  quantity    Float
+  unit        String?
+  price       Float    // per unit
+  discountPct Float    @default(0)
+  discountAmt Float    @default(0)
+  taxRate     Float    @default(0)
+  taxable     Float    @default(0)
+  cgst        Float    @default(0)
+  sgst        Float    @default(0)
+  igst        Float    @default(0)
+  total       Float    @default(0)
+
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product     Product? @relation(fields: [productId], references: [id])
+
+  @@index([invoiceId])
+}
+
+// ─────────────────────────────────────────────
+// Purchases
+// ─────────────────────────────────────────────
+
+model Purchase {
+  id            String   @id @default(cuid())
+  businessId    String
+  branchId      String?
+  number        String
+  seq           Int
+  type          String   @default("purchase") // purchase | purchase_return
+  status        String   @default("received")
+  partyId       String?
+  partyName     String
+  partyGstin    String?
+  partyStateCode String?
+  invoiceNumber String? // supplier's invoice no
+  invoiceDate   DateTime
+  receivedDate  DateTime?
+  supplyType    String   @default("intra")
+  subtotal      Float    @default(0)
+  discountTotal Float    @default(0)
+  taxableValue  Float    @default(0)
+  cgstTotal     Float    @default(0)
+  sgstTotal     Float    @default(0)
+  igstTotal     Float    @default(0)
+  roundOff      Float    @default(0)
+  grandTotal    Float    @default(0)
+  paidAmount    Float    @default(0)
+  balance       Float    @default(0)
+  notes         String?
+  createdBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branch        Branch?   @relation(fields: [branchId], references: [id])
+  party         Party?    @relation(fields: [partyId], references: [id])
+  items         PurchaseItem[]
+  payments      Payment[]
+
+  @@unique([businessId, number])
+  @@index([businessId, invoiceDate])
+  @@index([businessId, partyId])
+}
+
+model PurchaseItem {
+  id          String   @id @default(cuid())
+  purchaseId  String
+  productId   String?
+  name        String
+  hsn         String?
+  quantity    Float
+  unit        String?
+  price       Float
+  discountPct Float    @default(0)
+  discountAmt Float    @default(0)
+  taxRate     Float    @default(0)
+  taxable     Float    @default(0)
+  cgst        Float    @default(0)
+  sgst        Float    @default(0)
+  igst        Float    @default(0)
+  total       Float    @default(0)
+
+  purchase    Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product     Product? @relation(fields: [productId], references: [id])
+
+  @@index([purchaseId])
+}
+
+// ─────────────────────────────────────────────
+// Quotations / Estimates
+// ─────────────────────────────────────────────
+
+model Quotation {
+  id           String   @id @default(cuid())
+  businessId   String
+  number       String
+  seq          Int
+  type         String   @default("quotation") // quotation | estimate | proforma
+  status       String   @default("sent") // draft | sent | accepted | rejected | converted | expired
+  partyId      String?
+  partyName    String
+  subject      String?
+  quotationDate DateTime
+  validUntil   DateTime?
+  subtotal     Float    @default(0)
+  discountTotal Float   @default(0)
+  taxableValue Float    @default(0)
+  cgstTotal    Float    @default(0)
+  sgstTotal    Float    @default(0)
+  igstTotal    Float    @default(0)
+  roundOff     Float    @default(0)
+  grandTotal   Float    @default(0)
+  notes        String?
+  terms        String?
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  party        Party?    @relation(fields: [partyId], references: [id])
+  items        QuotationItem[]
+
+  @@unique([businessId, number])
+  @@index([businessId, quotationDate])
+}
+
+model QuotationItem {
+  id          String   @id @default(cuid())
+  quotationId String
+  productId   String?
+  name        String
+  hsn         String?
+  quantity    Float
+  unit        String?
+  price       Float
+  discountPct Float    @default(0)
+  discountAmt Float    @default(0)
+  taxRate     Float    @default(0)
+  taxable     Float    @default(0)
+  cgst        Float    @default(0)
+  sgst        Float    @default(0)
+  igst        Float    @default(0)
+  total       Float    @default(0)
+
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product     Product?  @relation(fields: [productId], references: [id])
+
+  @@index([quotationId])
+}
+
+// ─────────────────────────────────────────────
+// Payments & Expenses
+// ─────────────────────────────────────────────
+
+model Payment {
+  id          String   @id @default(cuid())
+  businessId  String
+  type        String   // receipt (in) | payment (out)
+  mode        String   // cash | upi | card | bank | cheque | rtgs
+  amount      Float
+  date        DateTime
+  invoiceId   String?
+  purchaseId  String?
+  partyId     String?
+  reference   String?  // txn id / cheque no
+  note        String?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  invoice     Invoice?  @relation(fields: [invoiceId], references: [id])
+  purchase    Purchase? @relation(fields: [purchaseId], references: [id])
+  party       Party?    @relation(fields: [partyId], references: [id])
+
+  @@index([businessId, date])
+  @@index([invoiceId])
+  @@index([purchaseId])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  businessId  String
+  category    String   // rent | salary | utilities | travel | marketing | misc
+  amount      Float
+  date        DateTime
+  mode        String   @default("cash")
+  vendor      String?
+  reference   String?
+  note        String?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, date])
+  @@index([businessId, category])
+}
+
+// ─────────────────────────────────────────────
+// Notifications & Audit
+// ─────────────────────────────────────────────
+
+model Notification {
+  id         String   @id @default(cuid())
+  businessId String
+  title      String
+  body       String
+  kind       String   @default("info") // info | success | warning | error | stock | payment | gst
+  link       String?
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, read, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  businessId String
+  userId     String?
+  action     String   // create | update | delete | login | export | print
+  entity     String   // invoice | party | product | ...
+  entityId   String?
+  summary    String?
+  metadata   String?  // JSON string
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([businessId, createdAt])
+  @@index([entity, entityId])
+}
