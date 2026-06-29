@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   TrendingUp, Wallet, Package, AlertTriangle,
   ArrowUpRight, ArrowDownRight, Receipt,
-  Bell, ChevronRight, Banknote, type LucideIcon,
+  Bell, ChevronRight, Banknote, Users, ShoppingCart, ScanLine, type LucideIcon,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart,
@@ -62,56 +62,80 @@ export function DashboardView() {
   }
 
   const k = data.kpis;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
     <div className="p-4 sm:p-6 lg:p-7 space-y-5 max-w-[1600px] mx-auto" data-testid="dashboard-view">
-      {/* Greeting */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-[12px] text-muted-foreground font-medium">
-            {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
-          </p>
-          <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight mt-0.5">
-            Welcome back, <span className="text-primary">Rahul</span> 👋
-          </h1>
-          <p className="text-[13px] text-muted-foreground mt-1">
-            Here's how <strong className="text-foreground/80">{business?.name}</strong> is performing this month.
-          </p>
+      {/* Hero gradient banner */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white p-5 sm:p-6 shadow-float"
+      >
+        {/* Decorative shapes */}
+        <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-white/8 blur-2xl" />
+        <div className="absolute -bottom-16 -left-8 w-56 h-56 rounded-full bg-amber-400/10 blur-3xl" />
+        <div className="absolute top-4 right-4 hidden sm:grid place-items-center w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15">
+          <span className="font-bold text-lg">M</span>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => openView("reports")}>
-            <TrendingUp className="w-4 h-4" /> View Reports
-          </Button>
-          <Button size="sm" className="gap-1.5 h-9 bg-primary hover:bg-primary/90" onClick={() => openView("sales", { action: "new" })}>
-            <Receipt className="w-4 h-4" /> New Invoice
-          </Button>
-        </div>
-      </div>
 
-      {/* KPI grid */}
+        <div className="relative">
+          <p className="text-[11.5px] text-white/75 font-medium">
+            {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          </p>
+          <h1 className="text-[22px] sm:text-[28px] font-bold tracking-tight mt-1">
+            {greeting}, Rahul 👋
+          </h1>
+          <p className="text-[12.5px] sm:text-[13px] text-white/85 mt-1 max-w-lg">
+            Here's how <strong className="text-white">{business?.name}</strong> is performing this month.
+          </p>
+
+          {/* Inline hero stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+            <HeroStat label="Month Sales" value={formatINR(k.monthSales)} growth={k.salesGrowth} />
+            <HeroStat label="Collected" value={formatINR(k.monthReceipts)} />
+            <HeroStat label="Outstanding" value={formatINR(k.totalOutstanding)} tone={k.totalOverdue > 0 ? "warn" : "ok"} />
+            <HeroStat label="Net Profit" value={formatINR(k.grossProfit)} tone={k.grossProfit >= 0 ? "ok" : "warn"} />
+          </div>
+
+          <div className="flex flex-wrap gap-2 mt-5">
+            <Button size="sm" onClick={() => openView("sales", { action: "new" })} className="gap-1.5 h-9 bg-white text-emerald-700 hover:bg-white/90 hover:text-emerald-800 shadow-soft">
+              <Receipt className="w-4 h-4" /> New Invoice
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => openView("pos")} className="gap-1.5 h-9 bg-white/10 border-white/25 text-white hover:bg-white/20 hover:text-white backdrop-blur-sm">
+              <ScanLine className="w-4 h-4" /> POS Billing
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => openView("reports")} className="gap-1.5 h-9 bg-white/10 border-white/25 text-white hover:bg-white/20 hover:text-white backdrop-blur-sm">
+              <TrendingUp className="w-4 h-4" /> Reports
+            </Button>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* KPI grid — operational metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <KpiCard
-          icon={TrendingUp}
-          label="Sales (This Month)"
-          value={formatINR(k.monthSales)}
-          change={k.salesGrowth}
-          accent="emerald"
-          spark={data.sparkline.map((d) => d.sales)}
-        />
-        <KpiCard
-          icon={Banknote}
-          label="Collected"
-          value={formatINR(k.monthReceipts)}
-          sub={`₹${k.receipts7.toLocaleString("en-IN")} in last 7 days`}
+          icon={ShoppingCart}
+          label="Purchases (Month)"
+          value={formatINR(k.monthPurchases)}
+          sub="Goods inward"
           accent="amber"
-          spark={data.sparkline.map((d) => d.receipts)}
         />
         <KpiCard
           icon={Wallet}
-          label="Outstanding"
-          value={formatINR(k.totalOutstanding)}
-          sub={k.totalOverdue > 0 ? `${formatINRCompact(k.totalOverdue)} overdue` : "All clear"}
-          accent={k.totalOverdue > 0 ? "red" : "neutral"}
+          label="Expenses (Month)"
+          value={formatINR(k.monthExpenses)}
+          sub="Business spending"
+          accent="red"
+        />
+        <KpiCard
+          icon={Users}
+          label="Customers"
+          value={String(k.customerCount)}
+          sub={`${k.supplierCount} suppliers`}
+          accent="emerald"
         />
         <KpiCard
           icon={Package}
@@ -171,8 +195,8 @@ export function DashboardView() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={data.gstBreakdown} dataKey="tax" nameKey="rate" cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={2}>
-                    {data.gstBreakdown.map((_, i) => (
-                      <Cell key={i} fill={GST_COLORS[i % GST_COLORS.length]} />
+                    {data.gstBreakdown.map((g, i) => (
+                      <Cell key={`gst-${g.rate}`} fill={GST_COLORS[i % GST_COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip content={<ChartTooltip suffix="" />} />
@@ -361,6 +385,23 @@ function KpiCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function HeroStat({ label, value, growth, tone }: { label: string; value: string; growth?: number; tone?: "ok" | "warn" }) {
+  return (
+    <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] uppercase tracking-wider text-white/70 font-semibold">{label}</p>
+        {growth !== undefined && (
+          <span className={`flex items-center gap-0.5 text-[10px] font-bold ${growth >= 0 ? "text-emerald-200" : "text-red-200"}`}>
+            {growth >= 0 ? <ArrowUpRight className="w-2.5 h-2.5" /> : <ArrowDownRight className="w-2.5 h-2.5" />}
+            {Math.abs(growth).toFixed(0)}%
+          </span>
+        )}
+      </div>
+      <p className={`text-[16px] sm:text-[18px] font-bold tnum tracking-tight mt-1 ${tone === "warn" ? "text-amber-200" : "text-white"}`}>{value}</p>
+    </div>
   );
 }
 

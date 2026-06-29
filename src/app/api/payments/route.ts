@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getActiveBusiness } from "@/lib/auth";
+import { recordAudit } from "@/lib/audit";
 
 export async function GET() {
   const biz = await getActiveBusiness();
@@ -49,6 +50,15 @@ export async function POST(req: NextRequest) {
       await db.invoice.update({ where: { id: inv.id }, data: { paidAmount: newPaid, balance: newBalance, status } });
     }
   }
+
+  await recordAudit({
+    businessId: biz.id,
+    action: "payment",
+    entity: "payment",
+    entityId: payment.id,
+    summary: `${body.type === "receipt" ? "Received" : "Paid"} ${payment.amount} via ${payment.mode}${body.invoiceId ? ` for invoice` : ""}`,
+    metadata: { type: body.type, mode: body.mode, amount: payment.amount, invoiceId: body.invoiceId },
+  });
 
   return NextResponse.json({ ok: true, payment });
 }

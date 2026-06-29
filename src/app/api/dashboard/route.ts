@@ -48,24 +48,42 @@ export async function GET() {
   const outOfStock = products.filter((p) => p.stock <= 0);
   const inventoryValue = products.reduce((s, p) => s + p.stock * p.salePrice, 0);
 
-  // last 14 days sales sparkline
+  // last 14 days sales sparkline — single aggregation query (not N+1)
+  // See: PERFORMANCE_REPORT.md §4.2, ADR-008
+  const sparkStart = new Date(now.getTime() - 13 * 86400000);
+  const sparkStartDay = new Date(sparkStart.getFullYear(), sparkStart.getMonth(), sparkStart.getDate());
+
+  const [salesByDay, receiptsByDay] = await Promise.all([
+    db.invoice.findMany({
+      where: { businessId: biz.id, invoiceDate: { gte: sparkStartDay } },
+      select: { invoiceDate: true, grandTotal: true },
+    }),
+    db.payment.findMany({
+      where: { businessId: biz.id, type: "receipt", date: { gte: sparkStartDay } },
+      select: { date: true, amount: true },
+    }),
+  ]);
+
+  // Bucket into 14 day buckets in JS (O(n) instead of 28 queries)
+  const salesMap = new Map<string, number>();
+  const receiptsMap = new Map<string, number>();
+  for (const inv of salesByDay) {
+    const key = new Date(inv.invoiceDate.getFullYear(), inv.invoiceDate.getMonth(), inv.invoiceDate.getDate()).toISOString().slice(0, 10);
+    salesMap.set(key, (salesMap.get(key) ?? 0) + inv.grandTotal);
+  }
+  for (const pmt of receiptsByDay) {
+    const key = new Date(pmt.date.getFullYear(), pmt.date.getMonth(), pmt.date.getDate()).toISOString().slice(0, 10);
+    receiptsMap.set(key, (receiptsMap.get(key) ?? 0) + pmt.amount);
+  }
+
   const days: { date: string; sales: number; receipts: number }[] = [];
   for (let i = 13; i >= 0; i--) {
     const day = new Date(now.getTime() - i * 86400000);
-    const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
-    const dayEnd = new Date(dayStart.getTime() + 86400000);
-    const dayInvoices = await db.invoice.findMany({
-      where: { businessId: biz.id, invoiceDate: { gte: dayStart, lt: dayEnd } },
-      select: { grandTotal: true },
-    });
-    const dayReceipts = await db.payment.findMany({
-      where: { businessId: biz.id, type: "receipt", date: { gte: dayStart, lt: dayEnd } },
-      select: { amount: true },
-    });
+    const dayKey = new Date(day.getFullYear(), day.getMonth(), day.getDate()).toISOString().slice(0, 10);
     days.push({
-      date: dayStart.toISOString().slice(0, 10),
-      sales: dayInvoices.reduce((s, x) => s + x.grandTotal, 0),
-      receipts: dayReceipts.reduce((s, x) => s + x.amount, 0),
+      date: dayKey,
+      sales: salesMap.get(dayKey) ?? 0,
+      receipts: receiptsMap.get(dayKey) ?? 0,
     });
   }
 

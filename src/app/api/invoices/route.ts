@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getActiveBusiness } from "@/lib/auth";
 import { computeLine, deriveSupplyType, type LineInput } from "@/lib/gst";
+import { recordAudit } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
   const biz = await getActiveBusiness();
@@ -182,6 +183,15 @@ export async function POST(req: NextRequest) {
       kind: "info",
       link: `invoice:${inv.id}`,
     },
+  });
+
+  await recordAudit({
+    businessId: biz.id,
+    action: "create",
+    entity: "invoice",
+    entityId: inv.id,
+    summary: `Created ${number} for ${party?.name ?? "customer"} — ${grandTotal}`,
+    metadata: { number, partyName: party?.name, grandTotal, itemCount: computed.length },
   });
 
   return NextResponse.json({ ok: true, invoice: { id: inv.id, number: inv.number } });

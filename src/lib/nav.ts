@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, ReceiptText, ShoppingCart, Package, Users, FileText,
-  Wallet, BarChart3, Landmark, Settings, ScanLine, type LucideIcon,
+  Wallet, BarChart3, Landmark, Settings, ScanLine, History, type LucideIcon,
 } from "lucide-react";
 import type { ViewKey, ModulesConfig } from "@/lib/store";
 
@@ -25,6 +25,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "expenses", label: "Expenses", icon: Wallet, group: "transactions", desc: "Track business spending", mobile: false },
   { key: "reports", label: "Reports", icon: BarChart3, group: "insights", desc: "P&L, registers, day book", mobile: true },
   { key: "gst", label: "GST Returns", icon: Landmark, group: "insights", desc: "GSTR-1 & HSN summary", requiredModule: "gst", mobile: false },
+  { key: "audit", label: "Audit Log", icon: History, group: "system", desc: "Activity history & changes", mobile: false },
   { key: "settings", label: "Settings", icon: Settings, group: "system", desc: "Business profile & modules", mobile: false },
 ];
 

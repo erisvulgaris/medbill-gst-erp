@@ -11,7 +11,10 @@ export async function GET(req: NextRequest) {
 
   const where: Record<string, unknown> = { businessId: biz.id, deletedAt: null };
   if (q) where.OR = [{ name: { contains: q } }, { barcode: { contains: q } }, { sku: { contains: q } }];
-  if (onlyLow) where.stock = { lte: db.product.fields.minStock };
+
+  // Note: SQLite/Prisma cannot compare two columns in a WHERE clause
+  // (stock <= minStock). The `low=1` filter is applied in JS after fetch.
+  // See: API_AUDIT.md §6, ADR-003 (SQLite limitations)
 
   const [products, units, taxes, categories] = await Promise.all([
     db.product.findMany({
@@ -24,8 +27,13 @@ export async function GET(req: NextRequest) {
     db.category.findMany({ where: { businessId: biz.id, deletedAt: null } }),
   ]);
 
+  // Apply low-stock filter in JS (SQLite can't do column-to-column comparison)
+  const filteredProducts = onlyLow
+    ? products.filter((p) => p.stock <= p.minStock)
+    : products;
+
   return NextResponse.json({
-    items: products.map((p) => ({
+    items: filteredProducts.map((p) => ({
       id: p.id,
       name: p.name,
       sku: p.sku,

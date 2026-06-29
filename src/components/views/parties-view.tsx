@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { INDIAN_STATES, stateCodeFromGstin, isValidGstin } from "@/lib/gst";
 import { useAppStore } from "@/lib/store";
+import { PartyStatement } from "@/components/app/party-statement";
 
 interface Party {
   id: string; type: string; name: string; companyName?: string; gstin?: string;
@@ -38,7 +39,19 @@ interface Party {
 }
 
 export function PartiesView() {
-  const { viewParams } = useAppStore();
+  const { viewParams, openView } = useAppStore();
+
+  // Route to party statement if requested. Done before any hooks so the
+  // statement component owns its own hook order. See: react-hooks/rules-of-hooks
+  if (viewParams.action === "view" && viewParams.id) {
+    return <PartyStatement partyId={viewParams.id as string} onBack={() => openView("parties")} />;
+  }
+
+  return <PartiesList />;
+}
+
+function PartiesList() {
+  const { viewParams, openView } = useAppStore();
   const queryClient = useQueryClient();
   const [tab, setTab] = React.useState<"customer" | "supplier" | "all">("customer");
   const [search, setSearch] = React.useState("");
@@ -125,7 +138,7 @@ export function PartiesView() {
               </thead>
               <tbody>
                 {parties.map((p, i) => (
-                  <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i * 0.02, 0.3) }} className="border-b border-border/30 hover:bg-muted/30 group" data-testid={`party-row-${p.id}`}>
+                  <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i * 0.02, 0.3) }} className="border-b border-border/30 hover:bg-muted/30 group cursor-pointer" data-testid={`party-row-${p.id}`} onClick={() => openView("parties", { action: "view", id: p.id })}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <Avatar className="w-9 h-9 rounded-lg border border-border/50"><AvatarFallback className={cn("rounded-lg text-[11px] font-semibold", p.type === "supplier" ? "bg-purple-500/15 text-purple-600" : "bg-primary/10 text-primary")}>{initials(p.name)}</AvatarFallback></Avatar>
@@ -147,7 +160,7 @@ export function PartiesView() {
                     </td>
                     <td className="px-4 py-3 text-right tnum text-muted-foreground hidden sm:table-cell">{p.creditLimit > 0 ? formatINR(p.creditLimit) : "—"}</td>
                     <td className="px-4 py-3 text-right">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary" onClick={() => { setEditParty(p); setFormOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary" onClick={(e) => { e.stopPropagation(); setEditParty(p); setFormOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
                     </td>
                   </motion.tr>
                 ))}

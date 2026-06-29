@@ -9,6 +9,7 @@ import { Topbar } from "@/components/app/topbar";
 import { MobileBottomNav } from "@/components/app/mobile-bottom-nav";
 import { CommandPalette } from "@/components/app/command-palette";
 import { Onboarding } from "@/components/app/onboarding";
+import { ErrorBoundary } from "@/components/app/error-boundary";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Lazy-load views for code splitting & near-instant first paint
@@ -22,6 +23,7 @@ const QuotationsView = dynamic(() => import("@/components/views/quotations-view"
 const ExpensesView = dynamic(() => import("@/components/views/expenses-view").then(m => m.ExpensesView), { ssr: false, loading: () => <ViewSkeleton /> });
 const ReportsView = dynamic(() => import("@/components/views/reports-view").then(m => m.ReportsView), { ssr: false, loading: () => <ViewSkeleton /> });
 const GstView = dynamic(() => import("@/components/views/gst-view").then(m => m.GstView), { ssr: false, loading: () => <ViewSkeleton /> });
+const AuditView = dynamic(() => import("@/components/views/audit-view").then(m => m.AuditView), { ssr: false, loading: () => <ViewSkeleton /> });
 const SettingsView = dynamic(() => import("@/components/views/settings-view").then(m => m.SettingsView), { ssr: false, loading: () => <ViewSkeleton /> });
 
 const VIEWS: Record<string, React.ComponentType> = {
@@ -35,6 +37,7 @@ const VIEWS: Record<string, React.ComponentType> = {
   expenses: ExpensesView,
   reports: ReportsView,
   gst: GstView,
+  audit: AuditView,
   settings: SettingsView,
 };
 
@@ -85,18 +88,20 @@ export default function Home() {
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar />
         <main className="flex-1 overflow-y-auto pb-24 lg:pb-8" data-testid="main-content">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={view}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
-              className="min-h-full"
-            >
-              <ViewComponent />
-            </motion.div>
-          </AnimatePresence>
+          <ErrorBoundary key={view}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={view}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                className="min-h-full"
+              >
+                <ViewComponent />
+              </motion.div>
+            </AnimatePresence>
+          </ErrorBoundary>
         </main>
       </div>
       <MobileBottomNav />

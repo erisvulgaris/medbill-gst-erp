@@ -15,6 +15,7 @@ export type ViewKey =
   | "payments"
   | "reports"
   | "gst"
+  | "audit"
   | "settings";
 
 export interface ModulesConfig {

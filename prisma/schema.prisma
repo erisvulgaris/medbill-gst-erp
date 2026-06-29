@@ -478,6 +478,8 @@ model Quotation {
   status       String   @default("sent") // draft | sent | accepted | rejected | converted | expired
   partyId      String?
   partyName    String
+  partyGstin   String?
+  partyStateCode String?
   subject      String?
   quotationDate DateTime
   validUntil   DateTime?

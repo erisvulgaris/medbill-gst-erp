@@ -294,3 +294,73 @@ input[type="number"]::-webkit-inner-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
 }
+
+/* Premium shimmer for skeletons */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted) 0%,
+    color-mix(in oklch, var(--muted) 60%, var(--background)) 50%,
+    var(--muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* Stagger entrance utility for lists */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up {
+  animation: fade-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Print styles for invoices & quotations */
+@media print {
+  @page {
+    margin: 0;
+    size: A4;
+  }
+  body {
+    background: white !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+  /* Hide sidebar, topbar, bottom nav during print */
+  aside,
+  header,
+  nav[data-testid="mobile-bottom-nav"] {
+    display: none !important;
+  }
+}
+
+/* Refined table row hover — subtle lift */
+tbody tr {
+  transition: background-color 0.12s ease;
+}
+
+/* Nicer focus on inputs */
+input:focus, textarea:focus, select:focus {
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* Smooth color transitions on interactive elements */
+button, a, [role="button"] {
+  transition: color 0.12s ease, background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+}
+
+/* Reduce motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
