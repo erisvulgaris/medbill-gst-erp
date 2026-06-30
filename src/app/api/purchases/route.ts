@@ -1,14 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getActiveBusiness } from "@/lib/auth";
+import { apiHandler, apiSuccess, apiList, ApiError } from "@/lib/api-error";
+import { getBusinessContext, requireRoleOrDemo } from "@/lib/business-context";
 import { computeLine, deriveSupplyType, type LineInput } from "@/lib/gst";
 
-export async function GET(req: NextRequest) {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ items: [] });
+export const GET = apiHandler(async (req: NextRequest) => {
+  const ctx = await getBusinessContext(req);
+  
   const url = new URL(req.url);
   const q = url.searchParams.get("q") || "";
-  const where: Record<string, unknown> = { businessId: biz.id, deletedAt: null };
+  const where: Record<string, unknown> = { businessId: ctx.businessId, deletedAt: null };
   if (q) where.OR = [{ number: { contains: q } }, { partyName: { contains: q } }];
 
   const items = await db.purchase.findMany({
@@ -26,11 +27,11 @@ export async function GET(req: NextRequest) {
       supplyType: p.supplyType,
     })),
   });
-}
+});
 
-export async function POST(req: NextRequest) {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ error: "no business" }, { status: 404 });
+export const POST = apiHandler(async (req: NextRequest) => {
+  const ctx = await getBusinessContext(req);
+  
   const body = await req.json();
   const { partyId, invoiceDate, items, notes, invoiceNumber, supplyType, partyName, partyGstin, partyStateCode } = body as {
     partyId?: string; invoiceDate: string; items: LineInput[]; notes?: string; invoiceNumber?: string;
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
   if (!items?.length) return NextResponse.json({ error: "items required" }, { status: 400 });
 
   const party = partyId ? await db.party.findUnique({ where: { id: partyId } }) : null;
-  const finalSupply = supplyType ?? deriveSupplyType(biz.stateCode, party?.stateCode ?? partyStateCode);
+  const finalSupply = supplyType ?? deriveSupplyType(ctx.businessId, party?.stateCode ?? partyStateCode);
   const computed = items.map((l) => computeLine(l, finalSupply));
   const r2 = (n: number) => Math.round(n * 100) / 100;
   const subtotal = r2(computed.reduce((s, l) => s + l.gross, 0));
@@ -51,12 +52,12 @@ export async function POST(req: NextRequest) {
   const grandTotal = Math.round(rawGrand);
   const roundOff = r2(grandTotal - rawGrand);
 
-  const seq = (await db.purchase.count({ where: { businessId: biz.id } })) + 1;
+  const seq = (await db.purchase.count({ where: { businessId: ctx.businessId } })) + 1;
   const number = `PUR-${String(seq).padStart(4, "0")}`;
 
   const pur = await db.purchase.create({
     data: {
-      businessId: biz.id, number, seq, type: "purchase", status: "received",
+      businessId: ctx.businessId, number, seq, type: "purchase", status: "received",
       partyId: party?.id ?? null, partyName: party?.name ?? partyName ?? "Unknown",
       partyGstin: party?.gstin ?? partyGstin ?? null, partyStateCode: party?.stateCode ?? partyStateCode ?? null,
       invoiceNumber: invoiceNumber || null, invoiceDate: new Date(invoiceDate), receivedDate: new Date(),
@@ -73,15 +74,15 @@ export async function POST(req: NextRequest) {
     })),
   });
 
-  const warehouse = await db.warehouse.findFirst({ where: { businessId: biz.id } });
+  const warehouse = await db.warehouse.findFirst({ where: { businessId: ctx.businessId } });
   for (const l of computed) {
     if (!l.productId) continue;
     await db.product.update({ where: { id: l.productId }, data: { stock: { increment: l.quantity } } });
     if (warehouse) {
       await db.stockMovement.create({
-        data: { businessId: biz.id, productId: l.productId, warehouseId: warehouse.id, type: "purchase", direction: "in", quantity: l.quantity, refType: "purchase", refId: pur.id },
+        data: { businessId: ctx.businessId, productId: l.productId, warehouseId: warehouse.id, type: "purchase", direction: "in", quantity: l.quantity, refType: "purchase", refId: pur.id },
       });
     }
   }
-  return NextResponse.json({ ok: true, purchase: { id: pur.id, number: pur.number } });
-}
+  return apiSuccess({ purchase: { id: pur.id, number: pur.number } }, undefined, 201);
+});

@@ -1,46 +1,43 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getActiveBusiness } from "@/lib/auth";
+import { apiHandler, apiSuccess, ApiError } from "@/lib/api-error";
+import { getBusinessContext, requireRoleOrDemo } from "@/lib/business-context";
+import { createPaymentSchema } from "@/lib/schemas";
 import { recordAudit } from "@/lib/audit";
 
-export async function GET() {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ items: [] });
+export const GET = apiHandler(async (req: NextRequest) => {
+  const ctx = await getBusinessContext(req);
   const items = await db.payment.findMany({
-    where: { businessId: biz.id },
+    where: { businessId: ctx.businessId },
     orderBy: { date: "desc" },
     take: 100,
     include: { party: true, invoice: true },
   });
-  return NextResponse.json({
+  return apiSuccess({
     items: items.map((p) => ({
       id: p.id, type: p.type, mode: p.mode, amount: p.amount, date: p.date,
       reference: p.reference, note: p.note,
       partyName: p.party?.name ?? null, invoiceNumber: p.invoice?.number ?? null,
     })),
   });
-}
+});
 
-export async function POST(req: NextRequest) {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ error: "no business" }, { status: 404 });
-  const body = await req.json();
+export const POST = apiHandler(async (req: NextRequest) => {
+  const ctx = await requireRoleOrDemo(req, ["owner", "partner", "manager", "cashier", "sales"]);
+  const parsed = createPaymentSchema.safeParse(await req.json());
+  if (!parsed.success) throw ApiError.validation("Invalid payment data", parsed.error.issues);
+  const body = parsed.data;
+
   const payment = await db.payment.create({
     data: {
-      businessId: biz.id,
-      type: body.type || "receipt",
-      mode: body.mode || "cash",
-      amount: Number(body.amount) || 0,
-      date: new Date(body.date),
-      invoiceId: body.invoiceId || null,
-      purchaseId: body.purchaseId || null,
-      partyId: body.partyId || null,
-      reference: body.reference || null,
-      note: body.note || null,
+      businessId: ctx.businessId,
+      type: body.type, mode: body.mode, amount: body.amount,
+      date: new Date(body.date), invoiceId: body.invoiceId || null,
+      purchaseId: body.purchaseId || null, partyId: body.partyId || null,
+      reference: body.reference || null, note: body.note || null,
     },
   });
 
-  // Update invoice paid/balance if linked
   if (body.invoiceId) {
     const inv = await db.invoice.findUnique({ where: { id: body.invoiceId } });
     if (inv) {
@@ -52,13 +49,10 @@ export async function POST(req: NextRequest) {
   }
 
   await recordAudit({
-    businessId: biz.id,
-    action: "payment",
-    entity: "payment",
-    entityId: payment.id,
+    businessId: ctx.businessId, userId: ctx.userId, action: "payment", entity: "payment", entityId: payment.id,
     summary: `${body.type === "receipt" ? "Received" : "Paid"} ${payment.amount} via ${payment.mode}${body.invoiceId ? ` for invoice` : ""}`,
     metadata: { type: body.type, mode: body.mode, amount: payment.amount, invoiceId: body.invoiceId },
   });
 
-  return NextResponse.json({ ok: true, payment });
-}
+  return apiSuccess({ payment }, undefined, 201);
+});

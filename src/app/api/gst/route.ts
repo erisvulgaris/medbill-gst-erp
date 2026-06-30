@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getActiveBusiness } from "@/lib/auth";
+import { apiHandler, apiSuccess, apiList, ApiError } from "@/lib/api-error";
+import { getBusinessContext, requireRoleOrDemo } from "@/lib/business-context";
 
 /** GSTR-1 style outward supplies breakdown by HSN + GST rate. */
-export async function GET(req: NextRequest) {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ error: "no business" }, { status: 404 });
+export const GET = apiHandler(async (req: NextRequest) => {
+  const ctx = await getBusinessContext(req);
+  
   const url = new URL(req.url);
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
   const toD = to ? new Date(to) : now;
 
   const items = await db.invoiceItem.findMany({
-    where: { invoice: { businessId: biz.id, deletedAt: null, invoiceDate: { gte: fromD, lte: toD } } },
+    where: { invoice: { businessId: ctx.businessId, deletedAt: null, invoiceDate: { gte: fromD, lte: toD } } },
     select: { hsn: true, name: true, quantity: true, taxRate: true, taxable: true, cgst: true, sgst: true, igst: true, total: true, invoice: { select: { number: true, partyName: true, partyGstin: true, invoiceDate: true, supplyType: true } } },
   });
 
@@ -60,14 +61,14 @@ export async function GET(req: NextRequest) {
 
   // Invoices list for GSTR-1
   const invoices = await db.invoice.findMany({
-    where: { businessId: biz.id, deletedAt: null, invoiceDate: { gte: fromD, lte: toD } },
+    where: { businessId: ctx.businessId, deletedAt: null, invoiceDate: { gte: fromD, lte: toD } },
     orderBy: { invoiceDate: "asc" },
     select: { number: true, partyName: true, partyGstin: true, invoiceDate: true, supplyType: true, taxableValue: true, cgstTotal: true, sgstTotal: true, igstTotal: true, grandTotal: true, status: true },
   });
 
-  return NextResponse.json({
+  return apiSuccess({
     title: "GSTR-1 — Outward Supplies",
     period: { from: fromD, to: toD },
     hsnSummary, rateSummary, totals, invoices,
   });
-}
+});

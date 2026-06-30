@@ -1,29 +1,24 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getActiveBusiness } from "@/lib/auth";
+import { apiHandler, apiSuccess } from "@/lib/api-error";
+import { getBusinessContext } from "@/lib/business-context";
 
-export async function GET() {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ items: [] });
-  const items = await db.notification.findMany({
-    where: { businessId: biz.id },
-    orderBy: { createdAt: "desc" },
-    take: 30,
-  });
-  return NextResponse.json({ items });
-}
+export const GET = apiHandler(async (req: NextRequest) => {
+  const ctx = await getBusinessContext(req);
+  const items = await db.notification.findMany({ where: { businessId: ctx.businessId }, orderBy: { createdAt: "desc" }, take: 30 });
+  return apiSuccess({ items });
+});
 
-export async function PATCH(req: NextRequest) {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ error: "no business" }, { status: 404 });
+export const PATCH = apiHandler(async (req: NextRequest) => {
+  const ctx = await getBusinessContext(req);
   const body = await req.json();
   if (body.markAllRead) {
-    await db.notification.updateMany({ where: { businessId: biz.id, read: false }, data: { read: true } });
-    return NextResponse.json({ ok: true });
+    await db.notification.updateMany({ where: { businessId: ctx.businessId, read: false }, data: { read: true } });
+    return apiSuccess({ updated: true });
   }
   if (body.id) {
     await db.notification.update({ where: { id: body.id }, data: { read: !!body.read } });
-    return NextResponse.json({ ok: true });
+    return apiSuccess({ updated: true });
   }
-  return NextResponse.json({ ok: true });
-}
+  return apiSuccess({ updated: false });
+});

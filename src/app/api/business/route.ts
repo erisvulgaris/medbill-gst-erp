@@ -1,37 +1,29 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getActiveBusiness } from "@/lib/auth";
+import { apiHandler, apiSuccess, ApiError } from "@/lib/api-error";
+import { getBusinessContext, requireRoleOrDemo } from "@/lib/business-context";
+import { updateBusinessSchema } from "@/lib/schemas";
 
-export async function GET() {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ business: null });
-  const modules = (() => {
-    try { return JSON.parse(biz.modules || "{}"); } catch { return {}; }
-  })();
-  return NextResponse.json({ business: { ...biz, modules } });
-}
+export const GET = apiHandler(async (req: NextRequest) => {
+  const ctx = await getBusinessContext(req);
+  const biz = await db.business.findUnique({ where: { id: ctx.businessId } });
+  if (!biz) return apiSuccess({ business: null });
+  const modules = (() => { try { return JSON.parse(biz.modules || "{}"); } catch { return {}; } })();
+  return apiSuccess({ business: { ...biz, modules } });
+});
 
-/** Update business profile / onboarding config. */
-export async function PATCH(req: NextRequest) {
-  const body = await req.json();
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ error: "No business" }, { status: 404 });
+export const PATCH = apiHandler(async (req: NextRequest) => {
+  const ctx = await requireRoleOrDemo(req, ["owner", "partner"]);
+  const parsed = updateBusinessSchema.safeParse(await req.json());
+  if (!parsed.success) throw ApiError.validation("Invalid business data", parsed.error.issues);
+  const body = parsed.data;
 
   const allowed: Record<string, unknown> = {};
-  const fields = [
-    "name", "legalName", "gstin", "pan", "industry", "businessType",
-    "email", "phone", "addressLine1", "addressLine2", "city", "state",
-    "stateCode", "pincode", "logoUrl", "invoicePrefix", "quotationPrefix",
-    "inventoryMode", "storeMode", "employeeCount",
-  ];
-  for (const f of fields) {
-    if (body[f] !== undefined) allowed[f] = body[f];
+  for (const [k, v] of Object.entries(body)) {
+    if (k === "modules") allowed.modules = JSON.stringify(v);
+    else allowed[k] = v;
   }
-  if (body.modules) allowed.modules = JSON.stringify(body.modules);
 
-  const updated = await db.business.update({
-    where: { id: biz.id },
-    data: allowed,
-  });
-  return NextResponse.json({ ok: true, business: { ...updated, modules: body.modules ?? JSON.parse(updated.modules || "{}") } });
-}
+  const updated = await db.business.update({ where: { id: ctx.businessId }, data: allowed });
+  return apiSuccess({ business: { ...updated, modules: body.modules ?? JSON.parse(updated.modules || "{}") } });
+});

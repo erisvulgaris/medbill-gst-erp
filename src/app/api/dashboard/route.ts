@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getActiveBusiness } from "@/lib/auth";
+import { apiHandler, apiSuccess } from "@/lib/api-error";
+import { getBusinessContext } from "@/lib/business-context";
 
-export async function GET() {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ error: "no business" }, { status: 404 });
+export const GET = apiHandler(async (req: NextRequest) => {
+  const ctx = await getBusinessContext(req);
+  
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -13,17 +14,17 @@ export async function GET() {
   const last7 = new Date(now.getTime() - 7 * 86400000);
 
   const [invoices, prevInvoices, purchases, expenses, products, parties, receipts, receipts7, notifications, recentInvoices, overdue] = await Promise.all([
-    db.invoice.findMany({ where: { businessId: biz.id, invoiceDate: { gte: startOfMonth } }, select: { grandTotal: true, status: true, invoiceDate: true } }),
-    db.invoice.findMany({ where: { businessId: biz.id, invoiceDate: { gte: startOfPrevMonth, lt: startOfMonth } }, select: { grandTotal: true } }),
-    db.purchase.findMany({ where: { businessId: biz.id, invoiceDate: { gte: startOfMonth } }, select: { grandTotal: true } }),
-    db.expense.findMany({ where: { businessId: biz.id, date: { gte: startOfMonth } }, select: { amount: true } }),
-    db.product.findMany({ where: { businessId: biz.id, deletedAt: null }, select: { stock: true, minStock: true, name: true, salePrice: true, id: true } }),
-    db.party.findMany({ where: { businessId: biz.id, deletedAt: null }, select: { type: true, id: true, name: true } }),
-    db.payment.findMany({ where: { businessId: biz.id, type: "receipt", date: { gte: startOfMonth } }, select: { amount: true } }),
-    db.payment.findMany({ where: { businessId: biz.id, type: "receipt", date: { gte: last7 } }, select: { amount: true, date: true } }),
-    db.notification.findMany({ where: { businessId: biz.id }, orderBy: { createdAt: "desc" }, take: 8 }),
-    db.invoice.findMany({ where: { businessId: biz.id }, orderBy: { invoiceDate: "desc" }, take: 6, include: { party: true } }),
-    db.invoice.findMany({ where: { businessId: biz.id, status: { in: ["unpaid", "partial"] }, dueDate: { lt: now } }, select: { balance: true } }),
+    db.invoice.findMany({ where: { businessId: ctx.businessId, invoiceDate: { gte: startOfMonth } }, select: { grandTotal: true, status: true, invoiceDate: true } }),
+    db.invoice.findMany({ where: { businessId: ctx.businessId, invoiceDate: { gte: startOfPrevMonth, lt: startOfMonth } }, select: { grandTotal: true } }),
+    db.purchase.findMany({ where: { businessId: ctx.businessId, invoiceDate: { gte: startOfMonth } }, select: { grandTotal: true } }),
+    db.expense.findMany({ where: { businessId: ctx.businessId, date: { gte: startOfMonth } }, select: { amount: true } }),
+    db.product.findMany({ where: { businessId: ctx.businessId, deletedAt: null }, select: { stock: true, minStock: true, name: true, salePrice: true, id: true } }),
+    db.party.findMany({ where: { businessId: ctx.businessId, deletedAt: null }, select: { type: true, id: true, name: true } }),
+    db.payment.findMany({ where: { businessId: ctx.businessId, type: "receipt", date: { gte: startOfMonth } }, select: { amount: true } }),
+    db.payment.findMany({ where: { businessId: ctx.businessId, type: "receipt", date: { gte: last7 } }, select: { amount: true, date: true } }),
+    db.notification.findMany({ where: { businessId: ctx.businessId }, orderBy: { createdAt: "desc" }, take: 8 }),
+    db.invoice.findMany({ where: { businessId: ctx.businessId }, orderBy: { invoiceDate: "desc" }, take: 6, include: { party: true } }),
+    db.invoice.findMany({ where: { businessId: ctx.businessId, status: { in: ["unpaid", "partial"] }, dueDate: { lt: now } }, select: { balance: true } }),
   ]);
 
   const monthSales = invoices.reduce((s, i) => s + i.grandTotal, 0);
@@ -37,7 +38,7 @@ export async function GET() {
 
   const outstanding = invoices.reduce((s, i) => s + (i.status === "unpaid" || i.status === "partial" ? 0 : 0), 0);
   // outstanding from all unpaid invoices
-  const allUnpaid = await db.invoice.findMany({ where: { businessId: biz.id, status: { in: ["unpaid", "partial", "overdue"] } }, select: { balance: true } });
+  const allUnpaid = await db.invoice.findMany({ where: { businessId: ctx.businessId, status: { in: ["unpaid", "partial", "overdue"] } }, select: { balance: true } });
   const totalOutstanding = allUnpaid.reduce((s, i) => s + i.balance, 0);
   const totalOverdue = overdue.reduce((s, i) => s + i.balance, 0);
 
@@ -55,11 +56,11 @@ export async function GET() {
 
   const [salesByDay, receiptsByDay] = await Promise.all([
     db.invoice.findMany({
-      where: { businessId: biz.id, invoiceDate: { gte: sparkStartDay } },
+      where: { businessId: ctx.businessId, invoiceDate: { gte: sparkStartDay } },
       select: { invoiceDate: true, grandTotal: true },
     }),
     db.payment.findMany({
-      where: { businessId: biz.id, type: "receipt", date: { gte: sparkStartDay } },
+      where: { businessId: ctx.businessId, type: "receipt", date: { gte: sparkStartDay } },
       select: { date: true, amount: true },
     }),
   ]);
@@ -70,7 +71,7 @@ export async function GET() {
   for (const inv of salesByDay) {
     const key = new Date(inv.invoiceDate.getFullYear(), inv.invoiceDate.getMonth(), inv.invoiceDate.getDate()).toISOString().slice(0, 10);
     salesMap.set(key, (salesMap.get(key) ?? 0) + inv.grandTotal);
-  }
+}
   for (const pmt of receiptsByDay) {
     const key = new Date(pmt.date.getFullYear(), pmt.date.getMonth(), pmt.date.getDate()).toISOString().slice(0, 10);
     receiptsMap.set(key, (receiptsMap.get(key) ?? 0) + pmt.amount);
@@ -85,12 +86,12 @@ export async function GET() {
       sales: salesMap.get(dayKey) ?? 0,
       receipts: receiptsMap.get(dayKey) ?? 0,
     });
-  }
 
+  }
   // top products by sales value (last 30 days)
   const topItems = await db.invoiceItem.findMany({
-    where: { invoice: { businessId: biz.id, invoiceDate: { gte: last30 } } },
-    select: { name: true, quantity: true, total: true },
+    where: { invoice: { businessId: ctx.businessId, invoiceDate: { gte: last30 } } },
+    select: { name: true, quantity: true, total: true, taxRate: true, taxable: true, cgst: true, sgst: true, igst: true },
   });
   const productAgg = new Map<string, { qty: number; revenue: number }>();
   for (const it of topItems) {
@@ -116,7 +117,7 @@ export async function GET() {
     .map(([rate, v]) => ({ rate, ...v }))
     .sort((a, b) => a.rate - b.rate);
 
-  return NextResponse.json({
+  return apiSuccess({
     kpis: {
       monthSales,
       salesGrowth,
@@ -151,4 +152,5 @@ export async function GET() {
     notifications,
     unreadNotifications: notifications.filter((n) => !n.read).length,
   });
-}
+});
+

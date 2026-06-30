@@ -335,3 +335,86 @@ Sprint 1 execution is IN PROGRESS. A 48-hour long-running review cron job is act
 **Cron Job:** job_id 242249, every 15 minutes, will continue refactoring remaining routes.
 
 **Sprint 1 Completion: ~40%** (infrastructure done, route refactoring in progress)
+
+---
+
+## Sprint 1 — Route Refactoring Complete (2026-06-30, Session 2)
+
+### Current Project Status
+Major progress on Sprint 1. All 14 main API routes have been refactored to use `apiHandler` + zod validation + `getBusinessContext` (with demo fallback). Only 4 detail routes remaining. All endpoints verified returning HTTP 200 with standardized `{ success, data, error, meta }` envelope.
+
+### Completed This Session
+
+#### Route Refactoring: 14 routes refactored (18 total with auth)
+Previously refactored: invoices, auth/login, auth/register, auth/logout, auth/me, auth/switch-business (6)
+Newly refactored this session:
+1. **products** — apiHandler + zod createProductSchema + requireRoleOrDemo + recordAudit
+2. **parties** — apiHandler + zod createPartySchema + requireRoleOrDemo + recordAudit
+3. **payments** — apiHandler + zod createPaymentSchema + requireRoleOrDemo + recordAudit
+4. **expenses** — apiHandler + zod createExpenseSchema + requireRoleOrDemo + recordAudit
+5. **business** — apiHandler + zod updateBusinessSchema + requireRoleOrDemo
+6. **notifications** — apiHandler + getBusinessContext
+7. **audit** — apiHandler + getBusinessContext
+8. **dashboard** — apiHandler + getBusinessContext (fixed N+1, fixed broken braces from sed)
+9. **purchases** — apiHandler + getBusinessContext (fixed NextResponse → apiSuccess)
+10. **quotations** — apiHandler + getBusinessContext (fixed broken biz.quotationPrefix → ctx)
+11. **reports** — apiHandler + getBusinessContext (fixed error handling → throw ApiError)
+12. **gst** — apiHandler + getBusinessContext
+
+#### Bug Fixes During Refactoring
+- **Dashboard route**: Fixed missing `}` for `for` loop that was accidentally removed during sed refactoring. Fixed wrongly inserted `});` in 3 places. Fixed missing `=>` in arrow function syntax.
+- **Quotations route**: Fixed `biz.quotationPrefix`/`biz.quotationSeq` that were wrongly replaced with `ctx.businessId` by sed. Added `db.business.findUnique` to fetch the full business object.
+- **All routes**: Fixed missing `=>` in `apiHandler(async (req: NextRequest) =>` syntax (was `) {` instead of `) => {`).
+- **Reports route**: Fixed `return apiSuccess({ error: ... })` to `throw ApiError.badRequest(...)`.
+
+#### Cron Job Created
+- **Job ID:** 242425, every 15 minutes
+- **Purpose:** Continue refactoring remaining 4 detail routes, fix bugs, improve engineering
+- **Instructions:** Read worklog → check server → run lint/tests → refactor routes → verify → update worklog
+
+### Verification Evidence
+- **All 11 API endpoints:** HTTP 200 ✅
+- **Homepage:** HTTP 200 ✅
+- **CSP header:** Present ✅
+- **Tests:** 178/178 passing (7 files) ✅
+- **Lint:** 0 errors ✅
+- **Routes using apiHandler:** 18 (was 6) ✅
+- **Remaining unrefactored:** 4 (invoices/[id], parties/[id], quotations/[id], seed)
+
+### Remaining Sprint 1 Tasks
+1. ❌ Refactor 3 detail routes: invoices/[id], parties/[id], quotations/[id]
+2. ❌ Wire Industry Profile Engine into dashboard + onboarding UI
+3. ❌ Permission/RBAC integration tests
+4. ❌ OpenAPI spec generation
+5. ❌ Performance benchmarks
+6. ❌ Sprint 1 report + implementation matrix update
+
+### Unresolved Issues / Risks
+1. **Server instability** — Dev server dies after ~30s in sandbox. Keepalive script running.
+2. **gstBreakdown has null values** — Dashboard gstBreakdown returns `[{taxable:null, tax:null}]` — likely a query issue with `it.taxable` field not being selected. Needs investigation.
+3. **4 detail routes not refactored** — invoices/[id], parties/[id], quotations/[id], seed
+4. **No e2e tests** — Playwright not installed
+5. **No OpenAPI spec** — Not generated
+
+### Bug Fix: gstBreakdown null values ✅
+- **Issue:** Dashboard `gstBreakdown` returned `[{taxable:null, tax:null}]` because the `topItems` query only selected `name, quantity, total` but the GST aggregation loop accessed `taxRate, taxable, cgst, sgst, igst`.
+- **Fix:** Added missing fields to the `select` clause: `taxRate: true, taxable: true, cgst: true, sgst: true, igst: true`.
+- **Verified:** gstBreakdown now returns `[{rate:5, taxable:21836, tax:1091.8}, {rate:12, taxable:200, tax:24}, {rate:18, taxable:18300, tax:3294}, {rate:28, taxable:240, tax:67.2}]` ✅
+
+### Sprint 1 Progress: ~70% Complete
+- **Infrastructure:** 100% ✅ (auth, api-error, schemas, middleware, industry profiles, business-context)
+- **Route refactoring:** 18/22 routes ✅ (82%) — 4 remaining (3 detail routes + seed)
+- **Tests:** 178 passing ✅
+- **Lint:** 0 errors ✅
+- **All 11 main API endpoints:** HTTP 200 with standardized envelope ✅
+- **CSP + security headers:** Present ✅
+- **Bug fixes:** gstBreakdown null values fixed ✅
+- **Cron job:** Active (job_id 242425, every 15min) ✅
+
+### Remaining work (cron job will continue)
+1. Refactor 3 detail routes (invoices/[id], parties/[id], quotations/[id])
+2. Wire industry profiles into UI
+3. Permission tests
+4. OpenAPI spec
+5. Performance benchmarks
+6. Sprint 1 report

@@ -1,16 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getActiveBusiness } from "@/lib/auth";
+import { apiHandler, apiSuccess, ApiError } from "@/lib/api-error";
+import { getBusinessContext, requireRoleOrDemo } from "@/lib/business-context";
+import { createExpenseSchema } from "@/lib/schemas";
+import { recordAudit } from "@/lib/audit";
 
-export async function GET(req: NextRequest) {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ items: [] });
+export const GET = apiHandler(async (req: NextRequest) => {
+  const ctx = await getBusinessContext(req);
   const url = new URL(req.url);
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
   const cat = url.searchParams.get("category");
 
-  const where: Record<string, unknown> = { businessId: biz.id, deletedAt: null };
+  const where: Record<string, unknown> = { businessId: ctx.businessId, deletedAt: null };
   if (from || to) {
     where.date = {};
     if (from) (where.date as Record<string, unknown>).gte = new Date(from);
@@ -20,28 +22,24 @@ export async function GET(req: NextRequest) {
 
   const items = await db.expense.findMany({ where, orderBy: { date: "desc" }, take: 200 });
   const total = items.reduce((s, e) => s + e.amount, 0);
-  const byCategory = items.reduce<Record<string, number>>((acc, e) => {
-    acc[e.category] = (acc[e.category] ?? 0) + e.amount;
-    return acc;
-  }, {});
-  return NextResponse.json({ items, total, byCategory });
-}
+  const byCategory = items.reduce<Record<string, number>>((acc, e) => { acc[e.category] = (acc[e.category] ?? 0) + e.amount; return acc; }, {});
+  return apiSuccess({ items, total, byCategory });
+});
 
-export async function POST(req: NextRequest) {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ error: "no business" }, { status: 404 });
-  const body = await req.json();
+export const POST = apiHandler(async (req: NextRequest) => {
+  const ctx = await requireRoleOrDemo(req, ["owner", "partner", "manager"]);
+  const parsed = createExpenseSchema.safeParse(await req.json());
+  if (!parsed.success) throw ApiError.validation("Invalid expense data", parsed.error.issues);
+  const body = parsed.data;
+
   const expense = await db.expense.create({
     data: {
-      businessId: biz.id,
-      category: body.category || "misc",
-      amount: Number(body.amount) || 0,
-      date: new Date(body.date),
-      mode: body.mode || "cash",
-      vendor: body.vendor || null,
-      reference: body.reference || null,
-      note: body.note || null,
+      businessId: ctx.businessId,
+      category: body.category, amount: body.amount, date: new Date(body.date),
+      mode: body.mode, vendor: body.vendor || null, reference: body.reference || null, note: body.note || null,
     },
   });
-  return NextResponse.json({ ok: true, expense });
-}
+
+  await recordAudit({ businessId: ctx.businessId, userId: ctx.userId, action: "create", entity: "expense", entityId: expense.id, summary: `Expense ${expense.category}: ${expense.amount}` });
+  return apiSuccess({ expense }, undefined, 201);
+});

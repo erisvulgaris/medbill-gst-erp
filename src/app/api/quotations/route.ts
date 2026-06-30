@@ -1,15 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getActiveBusiness } from "@/lib/auth";
+import { apiHandler, apiSuccess, apiList, ApiError } from "@/lib/api-error";
+import { getBusinessContext, requireRoleOrDemo } from "@/lib/business-context";
 import { computeLine, deriveSupplyType, type LineInput } from "@/lib/gst";
 import { recordAudit } from "@/lib/audit";
 
-export async function GET(req: NextRequest) {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ items: [] });
+export const GET = apiHandler(async (req: NextRequest) => {
+  const ctx = await getBusinessContext(req);
+  
   const url = new URL(req.url);
   const q = url.searchParams.get("q") || "";
-  const where: Record<string, unknown> = { businessId: biz.id, deletedAt: null };
+  const where: Record<string, unknown> = { businessId: ctx.businessId, deletedAt: null };
   if (q) where.OR = [{ number: { contains: q } }, { partyName: { contains: q } }, { subject: { contains: q } }];
 
   const items = await db.quotation.findMany({
@@ -27,11 +28,11 @@ export async function GET(req: NextRequest) {
       grandTotal: qt.grandTotal, taxableValue: qt.taxableValue, createdAt: qt.createdAt,
     })),
   });
-}
+});
 
-export async function POST(req: NextRequest) {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ error: "no business" }, { status: 404 });
+export const POST = apiHandler(async (req: NextRequest) => {
+  const ctx = await getBusinessContext(req);
+  
   const body = await req.json();
   const { partyId, quotationDate, validUntil, items, notes, terms, subject, partyName: overridePartyName, partyGstin, partyStateCode } = body as {
     partyId?: string; quotationDate: string; validUntil?: string; items: LineInput[];
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
   if (!items?.length) return NextResponse.json({ error: "items required" }, { status: 400 });
 
   const party = partyId ? await db.party.findUnique({ where: { id: partyId } }) : null;
-  const supplyType = deriveSupplyType(biz.stateCode, party?.stateCode ?? partyStateCode);
+  const supplyType = deriveSupplyType(ctx.businessId, party?.stateCode ?? partyStateCode);
   const computed = items.map((l) => computeLine(l, supplyType));
   const r2 = (n: number) => Math.round(n * 100) / 100;
   const subtotal = r2(computed.reduce((s, l) => s + l.gross, 0));
@@ -54,12 +55,14 @@ export async function POST(req: NextRequest) {
   const grandTotal = Math.round(rawGrand);
   const roundOff = r2(grandTotal - rawGrand);
 
+  const biz = await db.business.findUnique({ where: { id: ctx.businessId } });
+  if (!biz) throw ApiError.notFound("Business not found");
   const seq = biz.quotationSeq;
   const number = `${biz.quotationPrefix}-${String(seq).padStart(4, "0")}`;
 
   const qt = await db.quotation.create({
     data: {
-      businessId: biz.id,
+      businessId: ctx.businessId,
       number,
       seq,
       type: "quotation",
@@ -103,10 +106,10 @@ export async function POST(req: NextRequest) {
     })),
   });
 
-  await db.business.update({ where: { id: biz.id }, data: { quotationSeq: seq + 1 } });
+  await db.business.update({ where: { id: ctx.businessId }, data: { quotationSeq: seq + 1 } });
 
   await recordAudit({
-    businessId: biz.id,
+    businessId: ctx.businessId,
     action: "create",
     entity: "quotation",
     entityId: qt.id,
@@ -114,5 +117,5 @@ export async function POST(req: NextRequest) {
     metadata: { number, grandTotal, itemCount: computed.length },
   });
 
-  return NextResponse.json({ ok: true, quotation: { id: qt.id, number: qt.number } });
-}
+  return apiSuccess({ quotation: { id: qt.id, number: qt.number } }, undefined, 201);
+});
