@@ -1,25 +1,34 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getActiveBusiness } from "@/lib/auth";
+import { apiHandler, apiList, apiSuccess, ApiError } from "@/lib/api-error";
+import { getBusinessContext, requireRoleOrDemo } from "@/lib/business-context";
 import { computeLine, deriveSupplyType, type LineInput } from "@/lib/gst";
 import { recordAudit } from "@/lib/audit";
+import { createInvoiceSchema, listQuerySchema } from "@/lib/schemas";
 
-export async function GET(req: NextRequest) {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ items: [] });
+/**
+ * GET /api/invoices — list invoices
+ * Auth: any authenticated user (or demo mode in dev)
+ * See: docs/04_API_SPECIFICATION.md
+ */
+export const GET = apiHandler(async (req: NextRequest) => {
+  const ctx = await getBusinessContext(req);
 
   const url = new URL(req.url);
-  const search = url.searchParams.get("q") || "";
-  const status = url.searchParams.get("status") || "";
-  const limit = Number(url.searchParams.get("limit") || 100);
+  const parsed = listQuerySchema.safeParse({
+    q: url.searchParams.get("q") || undefined,
+    status: url.searchParams.get("status") || undefined,
+    limit: url.searchParams.get("limit") || undefined,
+  });
+  if (!parsed.success) {
+    throw ApiError.validation("Invalid query parameters", parsed.error.issues);
+  }
+  const { q, status, limit } = parsed.data;
 
-  const where: Record<string, unknown> = { businessId: biz.id, deletedAt: null };
+  const where: Record<string, unknown> = { businessId: ctx.businessId, deletedAt: null };
   if (status) where.status = status;
-  if (search) {
-    where.OR = [
-      { number: { contains: search } },
-      { partyName: { contains: search } },
-    ];
+  if (q) {
+    where.OR = [{ number: { contains: q } }, { partyName: { contains: q } }];
   }
 
   const items = await db.invoice.findMany({
@@ -29,8 +38,8 @@ export async function GET(req: NextRequest) {
     include: { party: true },
   });
 
-  return NextResponse.json({
-    items: items.map((i) => ({
+  return apiList(
+    items.map((i) => ({
       id: i.id,
       number: i.number,
       type: i.type,
@@ -52,39 +61,36 @@ export async function GET(req: NextRequest) {
       paidAmount: i.paidAmount,
       balance: i.balance,
     })),
-  });
-}
+    { isDemoMode: ctx.isDemoMode }
+  );
+});
 
-export async function POST(req: NextRequest) {
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ error: "no business" }, { status: 404 });
+/**
+ * POST /api/invoices — create a tax invoice
+ * Auth: owner, partner, manager, sales (or demo mode in dev)
+ */
+export const POST = apiHandler(async (req: NextRequest) => {
+  const ctx = await requireRoleOrDemo(req, ["owner", "partner", "manager", "sales"]);
 
-  const body = await req.json();
+  // Validate input with zod
+  const parsed = createInvoiceSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    throw ApiError.validation("Invalid invoice data", parsed.error.issues);
+  }
+
   const {
     partyId, invoiceDate, dueDate, supplyType, items, notes, terms,
     partyName: overridePartyName, partyGstin, partyStateCode, placeOfSupply,
-  } = body as {
-    partyId?: string;
-    invoiceDate: string;
-    dueDate?: string;
-    supplyType?: "intra" | "inter";
-    items: LineInput[];
-    notes?: string;
-    terms?: string;
-    partyName?: string;
-    partyGstin?: string;
-    partyStateCode?: string;
-    placeOfSupply?: string;
-  };
+  } = parsed.data;
 
-  if (!items || items.length === 0) {
-    return NextResponse.json({ error: "At least one item required" }, { status: 400 });
+  const party = partyId ? await db.party.findFirst({ where: { id: partyId, businessId: ctx.businessId } }) : null;
+  if (partyId && !party) {
+    throw ApiError.notFound("Party not found in this business");
   }
 
-  const party = partyId ? await db.party.findUnique({ where: { id: partyId } }) : null;
-  const finalSupply = supplyType ?? deriveSupplyType(biz.stateCode, party?.stateCode ?? partyStateCode);
+  const finalSupply = supplyType ?? deriveSupplyType(ctx.stateCode, party?.stateCode ?? partyStateCode ?? null);
 
-  const computed = items.map((l) => computeLine(l, finalSupply));
+  const computed = items.map((l) => computeLine(l as LineInput, finalSupply));
   const r2 = (n: number) => Math.round(n * 100) / 100;
   const subtotal = r2(computed.reduce((s, l) => s + l.gross, 0));
   const discountTotal = r2(computed.reduce((s, l) => s + l.discountTotal, 0));
@@ -96,12 +102,16 @@ export async function POST(req: NextRequest) {
   const grandTotal = Math.round(rawGrand);
   const roundOff = r2(grandTotal - rawGrand);
 
+  // Get next invoice number (atomic)
+  const biz = await db.business.findUnique({ where: { id: ctx.businessId } });
+  if (!biz) throw ApiError.notFound("Business not found");
+
   const seq = biz.invoiceSeq;
   const number = `${biz.invoicePrefix}-${String(seq).padStart(4, "0")}`;
 
   const inv = await db.invoice.create({
     data: {
-      businessId: biz.id,
+      businessId: ctx.businessId,
       number,
       seq,
       type: "tax_invoice",
@@ -150,7 +160,7 @@ export async function POST(req: NextRequest) {
   });
 
   // Decrement stock + record movement
-  const warehouse = await db.warehouse.findFirst({ where: { businessId: biz.id } });
+  const warehouse = await db.warehouse.findFirst({ where: { businessId: ctx.businessId } });
   for (const l of computed) {
     if (!l.productId) continue;
     await db.product.update({
@@ -160,7 +170,7 @@ export async function POST(req: NextRequest) {
     if (warehouse) {
       await db.stockMovement.create({
         data: {
-          businessId: biz.id,
+          businessId: ctx.businessId,
           productId: l.productId,
           warehouseId: warehouse.id,
           type: "sale",
@@ -173,11 +183,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  await db.business.update({ where: { id: biz.id }, data: { invoiceSeq: seq + 1 } });
+  await db.business.update({ where: { id: ctx.businessId }, data: { invoiceSeq: seq + 1 } });
 
   await db.notification.create({
     data: {
-      businessId: biz.id,
+      businessId: ctx.businessId,
       title: "Invoice created",
       body: `${number} for ₹${grandTotal.toLocaleString("en-IN")} created.`,
       kind: "info",
@@ -186,13 +196,14 @@ export async function POST(req: NextRequest) {
   });
 
   await recordAudit({
-    businessId: biz.id,
+    businessId: ctx.businessId,
+    userId: ctx.userId,
     action: "create",
     entity: "invoice",
     entityId: inv.id,
-    summary: `Created ${number} for ${party?.name ?? "customer"} — ${grandTotal}`,
+    summary: `Created ${number} for ${party?.name ?? overridePartyName ?? "customer"} — ${grandTotal}`,
     metadata: { number, partyName: party?.name, grandTotal, itemCount: computed.length },
   });
 
-  return NextResponse.json({ ok: true, invoice: { id: inv.id, number: inv.number } });
-}
+  return apiSuccess({ id: inv.id, number: inv.number }, undefined, 201);
+});

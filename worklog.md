@@ -236,3 +236,102 @@ Phase 2 (Architecture Stabilization) documentation is now COMPLETE. All 21 speci
 3. Add zod validation to all 18 API routes
 4. Initialize Prisma migrations (stop using db:push)
 5. Set up GitHub Actions CI (lint, typecheck, unit, e2e, coverage gate)
+
+---
+
+## Sprint 1 — Production Foundation (2026-06-30, In Progress)
+
+### Current Project Status
+Sprint 1 execution is IN PROGRESS. A 48-hour long-running review cron job is active (job_id: 242249, every 15 minutes). Core authentication, validation, error handling, and security infrastructure have been implemented. Industry Profile Engine built with 14 industries. Some files were lost between sessions and have been recreated.
+
+### Completed This Round
+
+#### 1. Industry Profile Engine ✅
+- **`src/lib/industry-profiles.ts`** — 14 industry profiles (retail, wholesale, manufacturer, medical, restaurant, salon, service, electronics, garments, automobile, jewellery, hardware, clinic, fmcg). Each configures: modules, inventoryMode, dashboardKPIs, quickActions, invoiceTemplate, reports, defaults. Open-closed principle: adding industries = adding one entry.
+- **`src/lib/industry-profiles.test.ts`** — 18 tests covering: profile completeness, fallback, module configs, KPI selection, industry-specific behavior. All passing.
+
+#### 2. Authentication System ✅
+- **`src/lib/auth.ts`** — Full auth: password hashing (bcrypt, 12 rounds), HMAC-signed session tokens (30-day expiry), cookie management (httpOnly, secure, sameSite=lax), `getAuthContext`, `requireRole`, `requireAuth`, `loginWithPassword`, `registerWithPassword`, `sendOtp` (stub), `verifyOtp` (stub), `switchBusiness`. Backward-compatible `getActiveBusiness` export for existing routes.
+- **5 auth API routes**: `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/logout`, `GET /api/auth/me`, `POST /api/auth/switch-business`. All use `apiHandler` + zod validation + standardized envelope.
+- **`src/lib/auth.test.ts`** — 10 tests: password hashing (hash, verify, reject wrong), token management (create, verify, tampered, invalid sig, expired, all 13 roles). All passing.
+
+#### 3. Validation Layer ✅
+- **`src/lib/schemas/index.ts`** — 8 zod schemas (createInvoice, createParty, createProduct, createExpense, createPayment, updateBusiness, listQuery) + shared validators (gstin, pan, phone, pincode, email, money, quantity, taxRate, date, lineItem).
+- **`src/lib/schemas/index.test.ts`** — 12 tests covering valid/invalid inputs. All passing.
+
+#### 4. Error Handling ✅
+- **`src/lib/api-error.ts`** — `ApiError` class (8 error codes), `apiHandler` wrapper (try/catch + Prisma error mapping + request IDs + `x-request-id` header), `apiSuccess`/`apiList` envelope helpers. Standard envelope: `{ success, data, error, meta }`.
+
+#### 5. Security ✅
+- **`src/middleware.ts`** — CSP, HSTS (prod), X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy. Request ID generation. CSRF protection (Origin header check).
+- **`.env.example`** — Documents all required env vars (DATABASE_URL, NEXTAUTH_SECRET, OAuth, SMS, rate limiting, Sentry).
+- **Verified:** CSP header present, request IDs in responses, CSRF blocks cross-origin POSTs.
+
+#### 6. Business Context (Demo Fallback) ✅
+- **`src/lib/business-context.ts`** — `getBusinessContext` tries auth first, falls back to first business in dev mode. `requireRoleOrDemo` enforces roles in prod, skips in dev. Allows app to remain usable during development while having auth framework wired in.
+
+#### 7. Invoices Route Refactored (Reference Implementation) ✅
+- **`src/app/api/invoices/route.ts`** — Refactored to use `apiHandler`, zod validation, `getBusinessContext`/`requireRoleOrDemo`, `apiSuccess`/`apiList` envelope, `recordAudit`. Returns 201 on create. All other routes pending same refactor.
+
+### Verification Evidence
+- **Tests:** 178/178 passing (7 files: gst 64, format 55, utils 6, nav 13, auth 10, schemas 12, industry 18) ✅
+- **Lint:** 0 errors ✅
+- **Homepage:** HTTP 200 ✅
+- **CSP header:** Present ✅
+- **Register:** HTTP 200, `{ success: true, data: { user, business, role }, error: null }` ✅
+- **Login:** HTTP 200, same envelope ✅
+- **Validation error:** HTTP 422, `{ success: false, error: { code: "VALIDATION_ERROR", details: [...] }, meta: { requestId } }` ✅
+- **Wrong password:** HTTP 401, `{ success: false, error: { code: "UNAUTHORIZED" } }` ✅
+
+### Remaining Sprint 1 Tasks (In Progress)
+1. ❌ Refactor remaining 17 API routes to use apiHandler + zod (invoices done as reference)
+2. ❌ Wire Industry Profile Engine into dashboard + onboarding UI
+3. ❌ Permission/RBAC integration tests
+4. ❌ OpenAPI spec generation
+5. ❌ Performance benchmarks (no regression verification)
+6. ❌ Sprint 1 report + implementation matrix update + changelog
+
+### Unresolved Issues / Risks
+1. **File system instability** — Files created in previous sessions were lost. The cron job (every 15min) will help continue work across sessions.
+2. **Server instability** — Dev server dies after ~30s in sandbox. Keepalive script needed.
+3. **17/18 routes not refactored** — Only invoices done. Need to apply same pattern to products, parties, purchases, payments, expenses, quotations, reports, gst, audit, notifications, business, dashboard, seed.
+4. **OTP stub** — Phone/email OTP requires external service credentials (MSG91/Resend). Framework ready, integration pending.
+5. **Google OAuth** — Requires GOOGLE_CLIENT_ID/SECRET. Framework ready, integration pending.
+
+### Next Actions (cron job will continue)
+1. Refactor products route (next highest traffic)
+2. Refactor parties route
+3. Refactor remaining routes in batches
+4. Wire industry profiles into onboarding
+5. Write permission tests
+6. Generate OpenAPI spec
+7. Run performance benchmarks
+8. Write Sprint 1 report
+
+### Sprint 1 Final Status (Session End)
+
+**Infrastructure: 7/7 complete ✅**
+- auth.ts, api-error.ts, business-context.ts, schemas/index.ts, industry-profiles.ts, middleware.ts, .env.example
+
+**Auth Routes: 5/5 complete ✅**
+- login, register, logout, me, switch-business
+
+**API Routes Refactored: 1/14 (invoices) ✅**
+- Remaining: products, parties, purchases, payments, expenses, quotations, reports, gst, audit, notifications, business, dashboard, seed
+
+**Tests: 178 passing (7 files) ✅**
+- gst 64, format 55, utils 6, nav 13, auth 10, schemas 12, industry 18
+
+**Lint: 0 errors ✅**
+
+**Verified Endpoints:**
+- Register: HTTP 200, `{ success: true, data: { user, business, role }, error: null }`
+- Login: HTTP 200, same envelope
+- Validation error: HTTP 422, `{ success: false, error: { code: "VALIDATION_ERROR", details: [...] } }`
+- Wrong password: HTTP 401, `{ success: false, error: { code: "UNAUTHORIZED" } }`
+- Security headers: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy
+- Request IDs: x-request-id header on all responses
+
+**Cron Job:** job_id 242249, every 15 minutes, will continue refactoring remaining routes.
+
+**Sprint 1 Completion: ~40%** (infrastructure done, route refactoring in progress)
