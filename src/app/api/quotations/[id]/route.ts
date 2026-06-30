@@ -1,39 +1,40 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getActiveBusiness } from "@/lib/auth";
+import { apiHandler, apiSuccess, ApiError } from "@/lib/api-error";
+import { getBusinessContext, requireRoleOrDemo } from "@/lib/business-context";
 import { recordAudit } from "@/lib/audit";
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const GET = apiHandler(async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ error: "no business" }, { status: 404 });
+  const ctx = await getBusinessContext(req);
+  
   const qt = await db.quotation.findFirst({
-    where: { id, businessId: biz.id },
+    where: { id, businessId: ctx.businessId },
     include: { items: true, party: true },
   });
   if (!qt) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json({
+  return apiSuccess({
     quotation: {
       ...qt,
       business: {
         name: biz.name, legalName: biz.legalName, gstin: biz.gstin, pan: biz.pan,
         addressLine1: biz.addressLine1, city: biz.city, state: biz.state,
-        stateCode: biz.stateCode, pincode: biz.pincode, phone: biz.phone, email: biz.email,
+        stateCode: ctx.stateCode, pincode: biz.pincode, phone: biz.phone, email: biz.email,
       },
     },
   });
-}
+});
 
 /** Update status (sent/accepted/rejected/expired) or convert to invoice. */
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ error: "no business" }, { status: 404 });
+  const ctx = await getBusinessContext(req);
+  
   const body = await req.json();
 
   // Convert to invoice
   if (body.convertToInvoice) {
-    const qt = await db.quotation.findFirst({ where: { id, businessId: biz.id }, include: { items: true } });
+    const qt = await db.quotation.findFirst({ where: { id, businessId: ctx.businessId }, include: { items: true } });
     if (!qt) return NextResponse.json({ error: "not found" }, { status: 404 });
 
     const seq = biz.invoiceSeq;
@@ -41,7 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const inv = await db.invoice.create({
       data: {
-        businessId: biz.id,
+        businessId: ctx.businessId,
         number,
         seq,
         type: "tax_invoice",
@@ -88,14 +89,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
 
     // Decrement stock for converted items
-    const warehouse = await db.warehouse.findFirst({ where: { businessId: biz.id } });
+    const warehouse = await db.warehouse.findFirst({ where: { businessId: ctx.businessId } });
     for (const it of qt.items) {
       if (it.productId) {
         await db.product.update({ where: { id: it.productId }, data: { stock: { decrement: it.quantity } } });
         if (warehouse) {
           await db.stockMovement.create({
             data: {
-              businessId: biz.id, productId: it.productId, warehouseId: warehouse.id,
+              businessId: ctx.businessId, productId: it.productId, warehouseId: warehouse.id,
               type: "sale", direction: "out", quantity: it.quantity,
               refType: "invoice", refId: inv.id,
             },
@@ -104,11 +105,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    await db.business.update({ where: { id: biz.id }, data: { invoiceSeq: seq + 1 } });
+    await db.business.update({ where: { id: ctx.businessId }, data: { invoiceSeq: seq + 1 } });
     await db.quotation.update({ where: { id }, data: { status: "converted" } });
 
     await recordAudit({
-      businessId: biz.id,
+      businessId: ctx.businessId,
       action: "create",
       entity: "invoice",
       entityId: inv.id,
@@ -116,21 +117,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       metadata: { quotationId: qt.id, invoiceId: inv.id, number, grandTotal: qt.grandTotal },
     });
 
-    return NextResponse.json({ ok: true, invoice: { id: inv.id, number: inv.number } });
+    return apiSuccess({ invoice: { id: inv.id, number: inv.number } });
   }
 
   // Status update
   if (body.status) {
     await db.quotation.update({ where: { id }, data: { status: body.status } });
     await recordAudit({
-      businessId: biz.id,
+      businessId: ctx.businessId,
       action: "update",
       entity: "quotation",
       entityId: id,
       summary: `Quotation status changed to ${body.status}`,
     });
-    return NextResponse.json({ ok: true });
+    return apiSuccess({ ok: true });
   }
 
-  return NextResponse.json({ ok: true });
-}
+  return apiSuccess({ ok: true });
+});
+

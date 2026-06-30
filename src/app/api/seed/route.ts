@@ -1,14 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { apiHandler, apiSuccess } from "@/lib/api-error";
 
 /**
  * Seeds the database with a realistic demo business so the app is fully
  * explorable on first load. Idempotent — safe to call repeatedly.
  */
-export async function POST(_req: NextRequest) {
+export const POST = apiHandler(async (req: NextRequest) => {
   const existing = await db.business.findFirst();
   if (existing) {
-    return NextResponse.json({ ok: true, message: "already seeded", businessId: existing.id });
+    return apiSuccess({ message: "already seeded", businessId: existing.id });
   }
 
   // ── User first (Business requires ownerId) ────────────────
@@ -452,5 +453,5 @@ export async function POST(_req: NextRequest) {
     },
   });
 
-  return NextResponse.json({ ok: true, businessId: business.id });
-}
+  return apiSuccess({ businessId: business.id });
+});

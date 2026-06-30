@@ -1,29 +1,29 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getActiveBusiness } from "@/lib/auth";
+import { apiHandler, apiSuccess, ApiError } from "@/lib/api-error";
+import { getBusinessContext } from "@/lib/business-context";
 
 /** Returns a party ledger: opening balance + all invoices, purchases, payments. */
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const GET = apiHandler(async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
-  const biz = await getActiveBusiness();
-  if (!biz) return NextResponse.json({ error: "no business" }, { status: 404 });
+  const ctx = await getBusinessContext(req);
 
-  const party = await db.party.findFirst({ where: { id, businessId: biz.id } });
-  if (!party) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const party = await db.party.findFirst({ where: { id, businessId: ctx.businessId } });
+  if (!party) return apiSuccess({ error: "not found" }, { status: 404 });
 
   const [invoices, purchases, payments] = await Promise.all([
     db.invoice.findMany({
-      where: { businessId: biz.id, partyId: id, deletedAt: null },
+      where: { businessId: ctx.businessId, partyId: id, deletedAt: null },
       orderBy: { invoiceDate: "asc" },
       select: { id: true, number: true, invoiceDate: true, grandTotal: true, paidAmount: true, balance: true, status: true, type: true },
     }),
     db.purchase.findMany({
-      where: { businessId: biz.id, partyId: id, deletedAt: null },
+      where: { businessId: ctx.businessId, partyId: id, deletedAt: null },
       orderBy: { invoiceDate: "asc" },
       select: { id: true, number: true, invoiceDate: true, grandTotal: true, balance: true, status: true },
     }),
     db.payment.findMany({
-      where: { businessId: biz.id, partyId: id },
+      where: { businessId: ctx.businessId, partyId: id },
       orderBy: { date: "asc" },
       select: { id: true, type: true, mode: true, amount: true, date: true, reference: true, note: true, invoiceId: true },
     }),
@@ -107,7 +107,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     outstandingInvoices: invoices.filter((i) => i.balance > 0).reduce((s, i) => s + i.balance, 0),
   };
 
-  return NextResponse.json({
+  return apiSuccess({
     party: {
       id: party.id, name: party.name, type: party.type, phone: party.phone,
       email: party.email, gstin: party.gstin, city: party.city, state: party.state,
@@ -119,5 +119,5 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     invoiceCount: invoices.length,
     purchaseCount: purchases.length,
     paymentCount: payments.length,
-  });
-}
+});
+});
