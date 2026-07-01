@@ -18,21 +18,12 @@ import {
   Check, ArrowRight, ArrowLeft, Sparkles, Scan, Landmark, CalendarClock, Boxes,
   Globe, type LucideIcon,
 } from "lucide-react";
+import { INDUSTRY_LIST, getIndustryModules, getIndustryProfile } from "@/lib/industry-profiles";
 
-const INDUSTRIES: { id: string; label: string; icon: LucideIcon; desc: string }[] = [
-  { id: "retail", label: "Retail Shop", icon: Store, desc: "General retail & kirana" },
-  { id: "wholesale", label: "Wholesale / Distributor", icon: Boxes, desc: "Bulk trading & distribution" },
-  { id: "manufacturer", label: "Manufacturer", icon: Factory, desc: "Production & assembly" },
-  { id: "medical", label: "Medical / Pharmacy", icon: Pill, desc: "Pharmacy with expiry tracking" },
-  { id: "restaurant", label: "Restaurant / Café", icon: UtensilsCrossed, desc: "F&B with POS" },
-  { id: "salon", label: "Salon / Spa", icon: Scissors, desc: "Appointments & services" },
-  { id: "service", label: "Service Business", icon: Headset, desc: "Service invoices" },
-  { id: "electronics", label: "Electronics / Mobile", icon: Smartphone, desc: "Serial number tracking" },
-  { id: "grocery", label: "Grocery / FMCG", icon: ShoppingCart, desc: "High-volume items" },
-  { id: "garments", label: "Garments / Apparel", icon: Shirt, desc: "Sizes & variants" },
-  { id: "automobile", label: "Automobile Parts", icon: Car, desc: "Spare parts trading" },
-  { id: "jewellery", label: "Jewellery", icon: Gem, desc: "High-value invoicing" },
-];
+// Use the Industry Profile Engine instead of hardcoded list.
+// Adding a new industry = adding one entry to INDUSTRY_PROFILES in src/lib/industry-profiles.ts
+// No changes needed here (Open-Closed Principle).
+const INDUSTRIES = INDUSTRY_LIST.map(p => ({ id: p.id, label: p.label, icon: p.icon, desc: p.description }));;
 
 const BUSINESS_TYPES = [
   { id: "proprietorship", label: "Proprietorship" },
@@ -57,20 +48,9 @@ const MODULES: { key: keyof ModulesConfig; label: string; icon: LucideIcon; desc
   { key: "onlineStore", label: "Online Store", icon: Globe, desc: "Sell online" },
 ];
 
-const INDUSTRY_PRESET: Record<string, Partial<ModulesConfig>> = {
-  medical: { expiry: true, batch: true, barcode: true, pos: true, inventory: true, gst: true },
-  restaurant: { pos: true, inventory: true, gst: false },
-  salon: { pos: true, inventory: false, gst: false, crm: true },
-  service: { inventory: false, gst: true },
-  electronics: { serial: true, barcode: true, pos: true, inventory: true, gst: true },
-  grocery: { pos: true, inventory: true, barcode: true, gst: true },
-  garments: { pos: true, inventory: true, barcode: true, gst: true },
-  jewellery: { pos: true, inventory: true, barcode: true, gst: true, serial: true },
-  automobile: { pos: true, inventory: true, barcode: true, gst: true },
-  retail: { pos: true, inventory: true, barcode: true, gst: true },
-  wholesale: { inventory: true, gst: true, barcode: true },
-  manufacturer: { manufacturing: true, inventory: true, gst: true },
-};
+// Industry presets are now sourced from the Industry Profile Engine.
+// See: src/lib/industry-profiles.ts, docs/01_PRD.md
+// The old hardcoded INDUSTRY_PRESET is replaced by getIndustryModules().
 
 const STEPS = ["Business", "Industry", "Modules", "Review"] as const;
 
@@ -104,8 +84,9 @@ export function Onboarding() {
 
   const selectIndustry = (id: string) => {
     update("industry", id);
-    const preset = INDUSTRY_PRESET[id];
-    if (preset) setModules((m) => ({ ...DEFAULT_MODULES, ...m, ...preset }));
+    // Use Industry Profile Engine for module presets
+    const preset = getIndustryModules(id);
+    setModules(preset);
     const stateMap: Record<string, { state: string; code: string }> = {};
     INDIAN_STATES.forEach((s) => (stateMap[s.name] = { state: s.name, code: s.code }));
   };

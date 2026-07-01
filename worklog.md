@@ -660,3 +660,58 @@ CSP header: Present ✅
 4. Fix ChunkLoadError issue (server stability)
 5. OpenAPI spec generation
 6. Performance benchmarks
+
+---
+
+## Sprint 1 — Industry Profile Engine Wired + Testing (2026-07-01, Session 6)
+
+### Completed This Session
+
+#### 1. Industry Profile Engine Wired into Onboarding ✅
+- Replaced hardcoded `INDUSTRIES` array with `INDUSTRY_LIST` from `src/lib/industry-profiles.ts`
+- Replaced hardcoded `INDUSTRY_PRESET` with `getIndustryModules()` from the engine
+- Updated `selectIndustry()` to use the engine's module presets
+- **Result:** Onboarding now uses the Industry Profile Engine. Adding a new industry = adding one entry to `INDUSTRY_PROFILES` — no onboarding code changes needed (Open-Closed Principle).
+
+#### 2. Industry Profile Engine Wired into Dashboard ✅
+- Imported `getIndustryQuickActions()` from the engine
+- Replaced hardcoded quick action buttons (New Invoice, POS Billing) with industry-driven ones
+- Each industry now shows its own quick actions (e.g., restaurant shows "POS Billing", service shows "New Invoice", wholesale shows "New Invoice" + "New Purchase")
+- **Result:** Dashboard quick actions are now dynamically configured by the Industry Profile Engine.
+
+#### 3. Fixed Hardcoded "Rahul" ✅
+- Removed hardcoded "Rahul" from dashboard greeting
+- Now shows just "{greeting} 👋" (e.g., "Good morning 👋")
+- Was a P1 issue identified in FRONTEND_AUDIT.md
+
+### Comprehensive Flow Tests (12/12 passed)
+
+| # | Test | Result | Evidence |
+|---|------|--------|---------|
+| 1 | Dashboard | ✅ | monthSales=236, outstanding=17514, profit=-264 |
+| 2 | Invoices list | ✅ | 20 invoices, latest INV-0020 (paid) |
+| 3 | Products | ✅ | 15 products, 1 low stock, 6 units, 5 tax rates |
+| 4 | Parties | ✅ | 8 parties, 5 customers |
+| 5 | Create invoice | ✅ | INV-0021 created (1×₹500 + 18% GST = ₹590) |
+| 6 | Collect payment | ✅ | ₹590 UPI receipt recorded |
+| 7 | Verify paid | ✅ | status=paid, paidAmount=590, balance=0 |
+| 8 | P&L Report | ✅ | revenue=700, cogs=0, netProfit=200 |
+| 9 | GST Report | ✅ | 2 invoices, 1 HSN entry, taxable=700 |
+| 10 | Audit Log | ✅ | 11 entries, latest "Received 590 via upi for invoice" |
+| 11 | Validation | ✅ | Empty items → VALIDATION_ERROR |
+| 12 | Security | ✅ | CSP header present |
+
+### Final Verification
+```
+Tests: 214 passed (214)
+Lint: 0 errors
+Routes using apiHandler: 22/22
+Industry profiles wired: 6 references in onboarding + dashboard
+Hardcoded "Rahul": 0 (removed)
+```
+
+### Remaining Work
+1. Browser E2E testing (limited by server instability — ChunkLoadError)
+2. OpenAPI spec generation
+3. Performance benchmarks
+4. Sprint 1 final report

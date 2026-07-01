@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import { formatINR, formatINRCompact, formatDate, relativeTime } from "@/lib/format";
+import { getIndustryQuickActions } from "@/lib/industry-profiles";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -86,7 +87,7 @@ export function DashboardView() {
             {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
           </p>
           <h1 className="text-[22px] sm:text-[28px] font-bold tracking-tight mt-1">
-            {greeting}, Rahul 👋
+            {greeting} 👋
           </h1>
           <p className="text-[12.5px] sm:text-[13px] text-white/85 mt-1 max-w-lg">
             Here's how <strong className="text-white">{business?.name}</strong> is performing this month.
@@ -101,12 +102,24 @@ export function DashboardView() {
           </div>
 
           <div className="flex flex-wrap gap-2 mt-5">
-            <Button size="sm" onClick={() => openView("sales", { action: "new" })} className="gap-1.5 h-9 bg-white text-emerald-700 hover:bg-white/90 hover:text-emerald-800 shadow-soft">
-              <Receipt className="w-4 h-4" /> New Invoice
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => openView("pos")} className="gap-1.5 h-9 bg-white/10 border-white/25 text-white hover:bg-white/20 hover:text-white backdrop-blur-sm">
-              <ScanLine className="w-4 h-4" /> POS Billing
-            </Button>
+            {/* Industry-driven quick actions from Industry Profile Engine */}
+            {getIndustryQuickActions(business?.industry).map((action, i) => {
+              const ActionIcon = action.icon;
+              const isPrimary = i === 0;
+              return (
+                <Button
+                  key={action.key}
+                  size="sm"
+                  onClick={() => openView(action.view, action.params)}
+                  className={isPrimary
+                    ? "gap-1.5 h-9 bg-white text-emerald-700 hover:bg-white/90 hover:text-emerald-800 shadow-soft"
+                    : "gap-1.5 h-9 bg-white/10 border-white/25 text-white hover:bg-white/20 hover:text-white backdrop-blur-sm"}
+                  variant={isPrimary ? "default" : "outline"}
+                >
+                  <ActionIcon className="w-4 h-4" /> {action.label}
+                </Button>
+              );
+            })}
             <Button size="sm" variant="outline" onClick={() => openView("reports")} className="gap-1.5 h-9 bg-white/10 border-white/25 text-white hover:bg-white/20 hover:text-white backdrop-blur-sm">
               <TrendingUp className="w-4 h-4" /> Reports
             </Button>
