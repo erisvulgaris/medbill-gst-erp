@@ -2,6 +2,15 @@
 
 import * as React from "react";
 
+/**
+ * API fetch helper with standardized envelope unwrapping.
+ *
+ * All API routes return: { success: boolean, data: T, error: null | {...}, meta: {...} }
+ * This helper unwraps the `data` field for successful responses
+ * and throws an Error with the error message for failures.
+ *
+ * See: docs/04_API_SPECIFICATION.md
+ */
 export async function api<T = unknown>(
   path: string,
   init?: RequestInit
@@ -13,11 +22,19 @@ export async function api<T = unknown>(
       ...(init?.headers || {}),
     },
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `Request failed: ${res.status}`);
+
+  const json = await res.json().catch(() => null);
+
+  if (!res.ok || !json?.success) {
+    const message = json?.error?.message || `Request failed: ${res.status}`;
+    const error = new Error(message) as Error & { code?: string; details?: unknown; requestId?: string };
+    error.code = json?.error?.code;
+    error.details = json?.error?.details;
+    error.requestId = json?.meta?.requestId;
+    throw error;
   }
-  return res.json() as Promise<T>;
+
+  return json.data as T;
 }
 
 /** Hydrate the active business from the server into the store on first load. */
@@ -30,12 +47,10 @@ export function useBootstrapBusiness() {
       try {
         const data = await api<{ business: any }>("/api/business");
         if (data.business) {
-          // dynamically import store to avoid SSR issues
           const { useAppStore } = await import("@/lib/store");
           useAppStore.getState().setBusiness(data.business);
           useAppStore.getState().setOnboarded(true);
         } else {
-          // try seed
           await api("/api/seed", { method: "POST" });
           const again = await api<{ business: any }>("/api/business");
           if (again.business) {

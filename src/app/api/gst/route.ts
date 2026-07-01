@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { apiHandler, apiSuccess, apiList, ApiError } from "@/lib/api-error";
+import { apiHandler, apiSuccess, ApiError } from "@/lib/api-error";
 import { getBusinessContext, requireRoleOrDemo } from "@/lib/business-context";
 
 /** GSTR-1 style outward supplies breakdown by HSN + GST rate. */

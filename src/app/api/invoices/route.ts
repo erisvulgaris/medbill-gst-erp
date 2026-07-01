@@ -38,8 +38,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
     include: { party: true },
   });
 
-  return apiList(
-    items.map((i) => ({
+  return apiSuccess({
+    items: items.map((i) => ({
       id: i.id,
       number: i.number,
       type: i.type,
@@ -61,8 +61,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       paidAmount: i.paidAmount,
       balance: i.balance,
     })),
-    { isDemoMode: ctx.isDemoMode }
-  );
+  }, { isDemoMode: ctx.isDemoMode });
 });
 
 /**
