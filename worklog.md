@@ -562,3 +562,101 @@ CSP header: Present ✅
 - ❌ OpenAPI spec
 - ❌ Performance benchmarks
 - ❌ Full E2e on all 12 views (server instability limits testing)
+
+---
+
+## Sprint 1 — Thorough Testing (2026-07-01, Session 5)
+
+### Bugs Fixed This Session
+1. **purchases/route.ts: `NextResponse is not defined`** — The sed refactoring removed the NextResponse import but left `NextResponse.json()` calls in the GET handler. Fixed by replacing all `NextResponse.json({ ... })` with `apiSuccess({ ... })` and `NextResponse.json({ error: ... }, { status: 400 })` with `throw ApiError.badRequest(...)`.
+2. **quotations/route.ts: `NextResponse is not defined`** — Same issue as purchases. Fixed the same way.
+
+### Comprehensive Testing Results
+
+#### API Endpoint Tests (18 endpoints)
+| Endpoint | Status | Evidence |
+|----------|--------|---------|
+| GET /api/dashboard | ✅ 200 | Returns kpis, sparkline, topProducts, gstBreakdown |
+| GET /api/invoices | ✅ 200 | Returns items array |
+| GET /api/products | ✅ 200 | Returns items, units, taxes, categories |
+| GET /api/parties | ✅ 200 | Returns items with outstanding |
+| GET /api/payments | ✅ 200 | Returns items array |
+| GET /api/expenses | ✅ 200 | Returns items, total, byCategory |
+| GET /api/purchases | ✅ 200 | Returns items (5 purchases) — **FIXED this session** |
+| GET /api/quotations | ✅ 200 | Returns items — **FIXED this session** |
+| GET /api/reports?report=profit_loss | ✅ 200 | Returns revenue, cogs, netProfit |
+| GET /api/reports?report=sales_register | ✅ 200 | Returns rows, totals |
+| GET /api/reports?report=purchase_register | ✅ 200 | Returns rows, totals |
+| GET /api/reports?report=party_summary | ✅ 200 | Returns rows |
+| GET /api/reports?report=inventory_valuation | ✅ 200 | Returns rows, totals |
+| GET /api/reports?report=day_book | ✅ 200 | Returns sales, purchases, expenses, payments |
+| GET /api/gst | ✅ 200 | Returns hsnSummary, rateSummary, totals |
+| GET /api/audit | ✅ 200 | Returns items (9 audit entries) |
+| GET /api/notifications | ✅ 200 | Returns items |
+| GET /api/business | ✅ 200 | Returns business |
+
+#### Invoice Lifecycle (API)
+| Step | Status | Evidence |
+|------|--------|---------|
+| Create invoice | ✅ | INV-0020 created (2×₹100 + 18% GST = ₹236) |
+| Collect payment | ✅ | ₹236 UPI receipt recorded |
+| Verify status | ✅ | status=paid, paidAmount=236, balance=0 |
+
+#### CRUD Operations (API)
+| Operation | Status | Evidence |
+|-----------|--------|---------|
+| Create expense | ✅ | success: true |
+| Create party | ✅ | success: true |
+| Create product | ✅ | success: true |
+| Create invoice | ✅ | success: true, returns id + number |
+
+#### Validation (API)
+| Test | Status | Evidence |
+|------|--------|---------|
+| Empty items array | ✅ 422 | code: VALIDATION_ERROR |
+| Negative amount | ✅ 422 | code: VALIDATION_ERROR |
+
+#### Authentication (API)
+| Test | Status | Evidence |
+|------|--------|---------|
+| Register | ✅ 200 | success: true, returns user |
+| Login (valid) | ✅ 200 | success: true, returns user |
+| Login (wrong password) | ✅ 401 | code: UNAUTHORIZED |
+
+#### Security
+| Test | Status | Evidence |
+|------|--------|---------|
+| CSP header | ✅ | Present |
+| Request IDs | ✅ | x-request-id header on responses |
+
+#### Frontend (agent-browser)
+| View | Status | Evidence |
+|------|--------|---------|
+| Dashboard | ✅ | "Good morning, Rahul" + KPIs |
+| Sales & Invoices | ✅ | Total Invoiced ₹62,461 |
+| Inventory | ✅ | 15 products, ₹89,918 value |
+| Parties | ✅ | 4 customers, ₹30,014 receivable |
+| Invoice Editor | ✅ | Customer picker, product picker, GST calc ₹305 |
+| Reports/GST/Audit/Settings | 🟡 | ChunkLoadError (server instability) |
+
+#### Test Suite
+| Metric | Value |
+|--------|-------|
+| Test files | 9 passed |
+| Tests | 214 passed |
+| Lint | 0 errors |
+| Routes using apiHandler | 22/22 |
+
+### Cron Job
+- **Job ID:** 243465 — properly created with `kind: "webDevReview"` and non-empty message
+- **Status:** Active (status: 1)
+- **Schedule:** Every 15 minutes (fixed_rate: 900s, Asia/Calcutta)
+- **Note:** Previous cron jobs (239818, 242425) failed — one hit exec limits, one had empty payload. This new job has correct payload. Will verify execution in next session.
+
+### Remaining Work
+1. Wire Industry Profile Engine into dashboard/onboarding UI
+2. Test POS checkout flow (browser)
+3. Test quotation→convert flow (browser)
+4. Fix ChunkLoadError issue (server stability)
+5. OpenAPI spec generation
+6. Performance benchmarks

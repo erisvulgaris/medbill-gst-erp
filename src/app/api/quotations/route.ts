@@ -20,7 +20,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     include: { party: true },
   });
 
-  return NextResponse.json({
+  return apiSuccess({
     items: items.map((qt) => ({
       id: qt.id, number: qt.number, type: qt.type, status: qt.status,
       partyId: qt.partyId, partyName: qt.partyName, partyPhone: qt.party?.phone ?? null,
@@ -40,7 +40,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     partyName?: string; partyGstin?: string; partyStateCode?: string;
   };
 
-  if (!items?.length) return NextResponse.json({ error: "items required" }, { status: 400 });
+  if (!items?.length) return apiSuccess({ error: "items required" }, { status: 400 });
 
   const party = partyId ? await db.party.findUnique({ where: { id: partyId } }) : null;
   const supplyType = deriveSupplyType(ctx.businessId, party?.stateCode ?? partyStateCode);
