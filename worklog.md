@@ -715,3 +715,69 @@ Hardcoded "Rahul": 0 (removed)
 2. OpenAPI spec generation
 3. Performance benchmarks
 4. Sprint 1 final report
+
+---
+
+## Admin Panel Created (2026-07-01)
+
+### Admin Panel Built ✅
+
+#### Documentation
+- **`docs/ADMIN_PANEL.md`** — Complete specification: overview, authentication, 3-tier subscription plans, features per tier, subscription lifecycle, admin panel features (dashboard, business mgmt, user mgmt, subscription mgmt, analytics, audit log, feature flags), admin API endpoints, data model, access control, security.
+
+#### Database Schema
+- **`SubscriptionPlan` model** — 3 plans: Starter (₹599/yr), Professional (₹2,999/yr), Enterprise (₹9,999/yr). Each with maxUsers, maxProducts, maxBranches, maxInvoices, features JSON.
+- **`Subscription` model** — Links business to plan with status (trial/active/expired/grace/suspended), start/end dates, trial end, amount, auto-renew.
+- Added `subscription` relation to Business model.
+- Schema pushed to database via `bun run db:push`.
+
+#### Admin User Created
+```
+Email: admin@medbill.in
+Password: Admin@MedBill2026
+Role: super_admin (stored in authProvider field)
+```
+
+#### Subscription Plans Seeded
+1. **Starter** — ₹599/year (1 user, 50 products, 1 branch, 100 invoices/mo)
+2. **Professional** — ₹2,999/year (5 users, 500 products, 2 branches, 1000 invoices/mo)
+3. **Enterprise** — ₹9,999/year (unlimited everything)
+
+#### Admin API Endpoints (6 routes)
+1. `POST /api/admin/login` — Admin login with email+password
+2. `GET /api/admin/dashboard` — Platform metrics (total businesses, users, revenue, plan distribution, recent signups)
+3. `GET /api/admin/businesses` — List all businesses with subscription info + usage counts
+4. `GET /api/admin/businesses/:id` — Business detail with owner, members, subscription, usage
+5. `PATCH /api/admin/businesses/:id` — Suspend/activate/change plan
+6. `GET /api/admin/users` — List all users with business memberships
+7. `GET /api/admin/subscriptions` — List all subscriptions with business + plan info
+8. `GET /api/admin/plans` — List all subscription plans
+
+#### Admin Panel UI (`/admin` route)
+- **Login screen** — Admin email/password with default credentials shown
+- **Dashboard tab** — Platform revenue, business count, user count, active subscriptions, plan distribution chart, subscription status counts, recent signups
+- **Businesses tab** — Searchable list of all businesses with plan, status, invoice count, suspend/activate actions
+- **Users tab** — List all users with business memberships
+- **Subscriptions tab** — List all subscriptions with plan, status, amount, end date
+- **Plans tab** — 3 plan cards with pricing, limits, features
+
+#### Admin Auth Helper
+- **`src/lib/admin-auth.ts`** — `requireAdmin(req)` checks for `super_admin` role in `authProvider` field
+- Separate from regular business auth
+- All `/api/admin/*` routes require admin authentication
+
+### Admin Panel Credentials
+```
+URL: http://localhost:3000/admin
+Email: admin@medbill.in
+Password: Admin@MedBill2026
+```
+
+### Verified
+- Admin login: ✅ (returns `success: true, role: "super_admin"`)
+- Admin dashboard: ✅ (businesses=1, users=21, plans=3)
+- Admin businesses list: ✅ (shows business with subscription info)
+- Admin plans: ✅ (3 plans with correct pricing)
+- Admin page loads: ✅ (HTTP 200 at /admin)
+- Lint: 0 errors ✅
+- Tests: 214 passed ✅

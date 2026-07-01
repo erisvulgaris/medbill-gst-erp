@@ -98,6 +98,7 @@ model Business {
   payments      Payment[]
   auditLogs     AuditLog[]
   notifications Notification[]
+  subscription  Subscription?
 
   @@index([ownerId])
 }
@@ -617,4 +618,46 @@ model AuditLog {
 
   @@index([businessId, createdAt])
   @@index([entity, entityId])
+}
+
+// ─────────────────────────────────────────────
+// Subscriptions & Plans (Admin Panel)
+// ─────────────────────────────────────────────
+
+model SubscriptionPlan {
+  id           String   @id @default(cuid())
+  name         String   @unique // "starter" | "professional" | "enterprise"
+  displayName  String   // "Starter" | "Professional" | "Enterprise"
+  priceYearly  Int      // 599 | 2999 | 9999 (in rupees)
+  priceMonthly Int      // 50 | 250 | 833 (in rupees)
+  maxUsers     Int      @default(1) // -1 = unlimited
+  maxProducts  Int      @default(50)
+  maxBranches  Int      @default(1)
+  maxInvoices  Int      @default(100) // per month, -1 = unlimited
+  features     String   @default("[]") // JSON array of feature keys
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id          String   @id @default(cuid())
+  businessId  String   @unique
+  planId      String
+  status      String   @default("trial") // trial | active | expired | grace | suspended
+  startDate   DateTime
+  endDate     DateTime
+  trialEndsAt DateTime?
+  amount      Int      @default(0) // in rupees
+  autoRenew   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business    Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan  @relation(fields: [planId], references: [id])
+
+  @@index([status])
+  @@index([planId])
 }
