@@ -36,13 +36,13 @@ describe("API Response Envelope", () => {
     expect(body.data).toHaveProperty("sparkline");
   });
 
-  it("GET /api/invoices returns { success, data: [...], meta: { count } }", async () => {
+  it("GET /api/invoices returns { success, data: { items: [...] } }", async () => {
     const { status, body } = await api("/api/invoices");
     if (status === 0) { expect(true).toBe(true); return; } // Skip: server not running
     expect(status).toBe(200);
     expect(body.success).toBe(true);
-    expect(Array.isArray(body.data)).toBe(true);
-    expect(body.meta).toHaveProperty("count");
+    expect(body.data).toHaveProperty("items");
+    expect(Array.isArray(body.data.items)).toBe(true);
   });
 
   it("GET /api/products returns products with units/taxes/categories", async () => {

@@ -266,6 +266,14 @@ function DashboardTab({ data }: { data: any }) {
 
 function BusinessesTab({ data, onAction }: { data: any; onAction: () => void }) {
   const [search, setSearch] = React.useState("");
+  const [selectedBiz, setSelectedBiz] = React.useState<string | null>(null);
+  const [selectedPlan, setSelectedPlan] = React.useState<string>("");
+  const [plans, setPlans] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    api("/api/admin/plans").then((d: any) => setPlans(d.items)).catch(() => {});
+  }, []);
+
   const items = (data?.items ?? []).filter((b: any) =>
     !search || b.name.toLowerCase().includes(search.toLowerCase()) || b.gstin?.includes(search)
   );
@@ -277,6 +285,7 @@ function BusinessesTab({ data, onAction }: { data: any; onAction: () => void }) 
         body: JSON.stringify({ action, planId }),
       });
       toast.success(`Action: ${action} completed`);
+      setSelectedBiz(null);
       onAction();
     } catch (e: any) {
       toast.error(e.message);
@@ -324,17 +333,39 @@ function BusinessesTab({ data, onAction }: { data: any; onAction: () => void }) 
                 </td>
                 <td className="px-2 py-3 text-right tnum hidden sm:table-cell">{b.invoiceCount}</td>
                 <td className="px-4 py-3 text-right">
-                  <div className="flex gap-1 justify-end">
-                    {b.subscription?.status !== "suspended" ? (
-                      <Button size="sm" variant="ghost" className="h-7 text-[11px] text-red-600" onClick={() => handleAction(b.id, "suspend")}>
-                        <Ban className="w-3 h-3" /> Suspend
+                  {selectedBiz === b.id ? (
+                    <div className="flex items-center gap-1.5 justify-end">
+                      <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+                        <SelectTrigger className="h-7 w-32 text-[11px]"><SelectValue placeholder="Select plan" /></SelectTrigger>
+                        <SelectContent>
+                          {plans.map((p: any) => (
+                            <SelectItem key={p.id} value={p.id} className="text-[11px]">
+                              {p.displayName} (₹{p.priceYearly}/yr)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button size="sm" className="h-7 text-[11px] bg-emerald-600 hover:bg-emerald-700" disabled={!selectedPlan} onClick={() => handleAction(b.id, "change_plan", selectedPlan)}>
+                        Confirm
                       </Button>
-                    ) : (
-                      <Button size="sm" variant="ghost" className="h-7 text-[11px] text-emerald-600" onClick={() => handleAction(b.id, "activate")}>
-                        <CheckCircle2 className="w-3 h-3" /> Activate
+                      <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => { setSelectedBiz(null); setSelectedPlan(""); }}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-1 justify-end">
+                      <Button size="sm" variant="ghost" className="h-7 text-[11px] text-emerald-600" onClick={() => { setSelectedBiz(b.id); setSelectedPlan(""); }}>
+                        <CreditCard className="w-3 h-3" /> Change Plan
                       </Button>
-                    )}
-                  </div>
+                      {b.subscription?.status !== "suspended" ? (
+                        <Button size="sm" variant="ghost" className="h-7 text-[11px] text-red-600" onClick={() => handleAction(b.id, "suspend")}>
+                          <Ban className="w-3 h-3" /> Suspend
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" className="h-7 text-[11px] text-emerald-600" onClick={() => handleAction(b.id, "activate")}>
+                          <CheckCircle2 className="w-3 h-3" /> Activate
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}

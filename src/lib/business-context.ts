@@ -23,6 +23,8 @@ export interface BusinessContext {
   userId: string | null;
   role: Role;
   isDemoMode: boolean;
+  subscriptionStatus?: string; // trial | active | expired | grace | suspended
+  planName?: string; // starter | professional | enterprise
 }
 
 /**
@@ -35,6 +37,10 @@ export async function getBusinessContext(req: NextRequest): Promise<BusinessCont
   // Try real auth first
   try {
     const ctx = await getAuthContext(req);
+    const sub = await db.subscription.findFirst({
+      where: { businessId: ctx.business.id },
+      include: { plan: true },
+    });
     return {
       businessId: ctx.business.id,
       businessName: ctx.business.name,
@@ -43,6 +49,8 @@ export async function getBusinessContext(req: NextRequest): Promise<BusinessCont
       userId: ctx.user.id,
       role: ctx.role,
       isDemoMode: false,
+      subscriptionStatus: sub?.status,
+      planName: sub?.plan?.name,
     };
   } catch {
     // Auth failed — in development, fall back to demo mode
@@ -56,6 +64,11 @@ export async function getBusinessContext(req: NextRequest): Promise<BusinessCont
       throw ApiError.notFound("No business found. Run POST /api/seed first.");
     }
 
+    const sub = await db.subscription.findFirst({
+      where: { businessId: biz.id },
+      include: { plan: true },
+    });
+
     return {
       businessId: biz.id,
       businessName: biz.name,
@@ -64,6 +77,8 @@ export async function getBusinessContext(req: NextRequest): Promise<BusinessCont
       userId: null,
       role: "owner" as Role,
       isDemoMode: true,
+      subscriptionStatus: sub?.status,
+      planName: sub?.plan?.name,
     };
   }
 }

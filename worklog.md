@@ -781,3 +781,57 @@ Password: Admin@MedBill2026
 - Admin page loads: ✅ (HTTP 200 at /admin)
 - Lint: 0 errors ✅
 - Tests: 214 passed ✅
+
+---
+
+## Iteration — Subscription System + Admin Plan Change (2026-07-01)
+
+### Completed This Session
+
+#### 1. Fixed Failing Integration Test ✅
+- Test expected `body.data` to be an array for invoices, but the envelope was changed to `{ data: { items: [...] } }`.
+- Fixed test to expect `body.data.items` as an array.
+
+#### 2. Subscription Endpoint (`GET /api/subscription`) ✅
+- New endpoint for businesses to view their own subscription + plan details.
+- Returns: subscription status, start/end dates, trial end, amount, days remaining, trial days remaining.
+- Returns: plan details (name, display name, price yearly/monthly, max limits, features).
+
+#### 3. Subscription Status in Business Context ✅
+- `BusinessContext` now includes `subscriptionStatus` and `planName`.
+- Both auth and demo mode paths fetch the subscription from the database.
+- Enables future plan limit enforcement (e.g., block invoice creation if suspended).
+
+#### 4. Admin "Change Plan" UI ✅
+- Added plan change dropdown to the admin Businesses tab.
+- Click "Change Plan" → select plan from dropdown (Starter ₹599, Professional ₹2,999, Enterprise ₹9,999) → confirm.
+- Calls `PATCH /api/admin/businesses/:id` with `action: "change_plan", planId: "..."`.
+- Updates subscription: plan, amount, status=active, end date = +365 days.
+
+### Verified End-to-End
+```
+1. Admin login → success ✅
+2. Get business ID → cmqyxczev0006tovzm6tmm6q5 ✅
+3. Get Enterprise plan ID → cmr1rgw7f0003ndsbivhdzxt0 ✅
+4. Change plan to Enterprise → success: True, plan: Enterprise, amount: 9999 ✅
+5. Verify via /api/subscription → plan: Enterprise, price: 9999, status: active, amount: 9999, days left: 365 ✅
+```
+
+### Admin Panel Features (All Working)
+| Feature | Status | Evidence |
+|---------|--------|---------|
+| Admin login | ✅ | Returns `role: super_admin` |
+| Dashboard metrics | ✅ | businesses=1, users=21, plans=3 |
+| List businesses | ✅ | Shows name, industry, plan, status, invoice count |
+| Change plan | ✅ | Changed to Enterprise (₹9,999) — verified |
+| Suspend/Activate | ✅ | API endpoint works |
+| List users | ✅ | Shows all users with business memberships |
+| List subscriptions | ✅ | Shows plan, status, amount, end date |
+| List plans | ✅ | 3 plans with correct pricing |
+| Business subscription view | ✅ | `/api/subscription` returns plan + days remaining |
+
+### Final Metrics
+- Tests: 214 passed ✅
+- Lint: 0 errors ✅
+- Routes: 23 (22 business + 1 subscription) + 8 admin = 31 total
+- Admin panel: Fully functional with plan management ✅
