@@ -45,12 +45,25 @@ export default function Home() {
   const { loading } = useBootstrapBusiness();
   const { onboarded, view } = useAppStore();
 
-  // Keyboard shortcut: ⌘K / Ctrl+K
+  // Keyboard shortcuts: ⌘K (command palette), ⌘N (new invoice), ⌘P (POS), ⌘B (toggle sidebar)
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
         useAppStore.getState().setCommandOpen(true);
+      }
+      if (mod && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        useAppStore.getState().openView("sales", { action: "new" });
+      }
+      if (mod && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        useAppStore.getState().openView("pos");
+      }
+      if (mod && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        useAppStore.getState().toggleSidebar();
       }
     };
     window.addEventListener("keydown", handler);

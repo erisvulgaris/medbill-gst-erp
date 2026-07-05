@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import { visibleNavItems } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, Sparkles, Building2 } from "lucide-react";
+import { ChevronLeft, Sparkles, Building2, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { initials } from "@/lib/format";
@@ -120,7 +120,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Business card */}
+      {/* Business card with plan badge */}
       <div className="p-2.5 border-t border-border/40 shrink-0">
         <button
           onClick={() => openView("settings")}
@@ -136,11 +136,24 @@ export function Sidebar() {
           </Avatar>
           {!collapsed && (
             <div className="flex flex-col leading-tight min-w-0 flex-1 text-left">
-              <span className="text-[12.5px] font-semibold truncate">{business?.name ?? "No business"}</span>
-              <span className="text-[10.5px] text-muted-foreground truncate">{business?.gstin ?? "No GSTIN"}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[12.5px] font-semibold truncate">{business?.name ?? "No business"}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10.5px] text-muted-foreground truncate">{business?.gstin ?? "No GSTIN"}</span>
+              </div>
             </div>
           )}
         </button>
+        {!collapsed && (
+          <div className="mt-1.5 px-2">
+            <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2 py-1">
+              <Crown className="w-3 h-3 text-emerald-600" />
+              <span className="text-[10px] font-semibold text-emerald-700">Enterprise Plan</span>
+              <span className="text-[9px] text-emerald-600/60 ml-auto">₹9,999/yr</span>
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

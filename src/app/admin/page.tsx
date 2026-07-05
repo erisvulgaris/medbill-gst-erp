@@ -15,7 +15,9 @@ import { toast } from "sonner";
 import {
   Shield, Building2, Users, CreditCard, TrendingUp, Search,
   DollarSign, AlertCircle, CheckCircle2, Clock, Ban, RefreshCw, LogOut,
+  Moon, Sun, ExternalLink,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 
 export default function AdminPage() {
   const [loggedIn, setLoggedIn] = React.useState(false);
@@ -99,6 +101,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = React.useState<"dashboard" | "businesses" | "users" | "subscriptions" | "plans">("dashboard");
   const [data, setData] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
 
   React.useEffect(() => {
     if (tab === "dashboard") loadDashboard();
@@ -172,16 +177,29 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             );
           })}
         </nav>
-        <Button variant="ghost" size="sm" onClick={onLogout} className="ml-auto gap-1.5 h-9 text-muted-foreground">
-          <LogOut className="w-4 h-4" /> Logout
-        </Button>
+        <div className="ml-auto flex items-center gap-1.5">
+          <a href="/" target="_blank" className="hidden sm:flex items-center gap-1.5 px-3 h-9 rounded-lg text-[12px] text-muted-foreground hover:bg-muted transition-colors">
+            <ExternalLink className="w-3.5 h-3.5" /> Main App
+          </a>
+          {mounted && (
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={onLogout} className="gap-1.5 h-9 text-muted-foreground">
+            <LogOut className="w-4 h-4" /> Logout
+          </Button>
+        </div>
       </header>
 
       <main className="p-5 sm:p-7 max-w-[1400px] mx-auto">
         {loading ? (
           <div className="space-y-4">
-            <Skeleton className="h-28 rounded-xl" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+            </div>
             <Skeleton className="h-64 rounded-xl" />
+            <Skeleton className="h-48 rounded-xl" />
           </div>
         ) : tab === "dashboard" ? (
           <DashboardTab data={data} />
