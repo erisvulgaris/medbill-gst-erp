@@ -129,7 +129,7 @@ export function SalesView() {
             </button>
           ))}
         </div>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5">
+        <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => exportInvoicesCSV(items)} data-testid="export-csv">
           <Download className="w-4 h-4" /> <span className="hidden sm:inline">Export</span>
         </Button>
       </Card>
@@ -233,4 +233,27 @@ function StatusBadge({ status }: { status: string }) {
     cancelled: "bg-muted text-muted-foreground line-through",
   };
   return <span className={cn("inline-block text-[10.5px] font-semibold px-2 py-0.5 rounded-md capitalize", map[status] || map.draft)}>{status}</span>;
+}
+
+function exportInvoicesCSV(invoices: any[]) {
+  if (!invoices.length) return;
+  const headers = ["Invoice Number", "Customer", "Date", "Due Date", "Total", "Paid", "Balance", "Status"];
+  const rows = invoices.map(i => [
+    i.number,
+    i.partyName,
+    formatDateShort(i.invoiceDate),
+    i.dueDate ? formatDateShort(i.dueDate) : "",
+    i.grandTotal,
+    i.paidAmount,
+    i.balance,
+    i.status,
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `invoices_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }

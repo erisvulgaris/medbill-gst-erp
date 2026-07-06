@@ -959,3 +959,36 @@ Subscription: Shree Balaji Traders | Enterprise | active | ₹9,999
 - Routes: 32/33 using apiHandler ✅
 - VLM rating: 8/10 ✅
 - Console errors: 0 on all main views ✅
+
+---
+
+## Autonomous Improvement Run 2 (2026-07-06)
+
+### Completed
+1. **Subscription enforcement** — `requireRoleOrDemo` now blocks mutations if business is suspended. In demo mode (dev), still allows. In production (real auth), returns 403 "Business is suspended."
+2. **CSV export on sales view** — Export button now downloads invoices as CSV (Invoice Number, Customer, Date, Due Date, Total, Paid, Balance, Status)
+3. **Subscription banner** — New component that shows below topbar when:
+   - Trial ending in ≤7 days (blue banner)
+   - Trial expired (amber banner)
+   - Subscription expired/grace (amber banner)
+   - Business suspended (red banner)
+   - Active with >7 days left: no banner (clean UI)
+4. **`requireActiveSubscription` helper** — For read-only endpoints that should also block suspended businesses
+
+### Verified
+- Dashboard: ✅ renders, no banner (active Enterprise plan, >7 days left)
+- Sidebar: ✅ "Enterprise Plan ₹9,999/yr" badge
+- Sales view: ✅ Export CSV button functional with `data-testid="export-csv"`
+- Admin suspend → create invoice → reactivate: ✅ cycle works
+- Admin panel: ✅ renders
+- Tests: 214/214 ✅
+- Lint: 0 errors ✅
+- Console errors: 0 ✅
+
+### Files Modified
+1. `src/lib/business-context.ts` — Subscription enforcement
+2. `src/components/views/sales-view.tsx` — CSV export function
+3. `src/app/page.tsx` — Added SubscriptionBanner
+4. `src/components/app/subscription-banner.tsx` — New component
+5. `reports/2026-07-06_00-00-improvement-report.md` — New report
+6. `reports/history.md` — Updated

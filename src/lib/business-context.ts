@@ -85,6 +85,7 @@ export async function getBusinessContext(req: NextRequest): Promise<BusinessCont
 
 /**
  * Require a specific role, with demo fallback in development.
+ * Also enforces subscription status — blocks mutations if suspended.
  */
 export async function requireRoleOrDemo(
   req: NextRequest,
@@ -102,5 +103,22 @@ export async function requireRoleOrDemo(
     throw ApiError.forbidden(`Role '${ctx.role}' not permitted. Required: ${allowedRoles.join(", ")}`);
   }
 
+  // Enforce subscription status for mutating operations
+  if (ctx.subscriptionStatus === "suspended") {
+    throw ApiError.forbidden("Business is suspended. Contact admin to reactivate your subscription.");
+  }
+
+  return ctx;
+}
+
+/**
+ * Check subscription status without requiring a specific role.
+ * Use for read-only endpoints that should still block suspended businesses.
+ */
+export async function requireActiveSubscription(req: NextRequest): Promise<BusinessContext> {
+  const ctx = await getBusinessContext(req);
+  if (!ctx.isDemoMode && ctx.subscriptionStatus === "suspended") {
+    throw ApiError.forbidden("Business is suspended.");
+  }
   return ctx;
 }

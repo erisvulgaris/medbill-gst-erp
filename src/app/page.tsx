@@ -10,6 +10,7 @@ import { MobileBottomNav } from "@/components/app/mobile-bottom-nav";
 import { CommandPalette } from "@/components/app/command-palette";
 import { Onboarding } from "@/components/app/onboarding";
 import { ErrorBoundary } from "@/components/app/error-boundary";
+import { SubscriptionBanner } from "@/components/app/subscription-banner";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Lazy-load views for code splitting & near-instant first paint
@@ -100,6 +101,7 @@ export default function Home() {
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar />
+        <SubscriptionBanner />
         <main className="flex-1 overflow-y-auto pb-24 lg:pb-8" data-testid="main-content">
           <ErrorBoundary key={view}>
             <AnimatePresence mode="wait">
