@@ -67,8 +67,8 @@ export function CommandPalette() {
           <CommandPrimitive.List className="max-h-[60vh] overflow-y-auto p-2">
             {/* Quick actions */}
             <CommandPrimitive.Group heading="Quick Actions" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-2 pt-2 pb-1">
-              <CommandItem onSelect={() => run(() => openView("sales", { action: "new" }))} icon={<Plus className="w-4 h-4" />} title="Create new invoice" subtitle="Start a GST tax invoice" />
-              <CommandItem onSelect={() => run(() => openView("pos"))} icon={<Receipt className="w-4 h-4" />} title="Open POS billing" subtitle="Quick counter sale" />
+              <CommandItem onSelect={() => run(() => openView("sales", { action: "new" }))} icon={<Plus className="w-4 h-4" />} title="Create new invoice" subtitle="Start a GST tax invoice · ⌘N" />
+              <CommandItem onSelect={() => run(() => openView("pos"))} icon={<Receipt className="w-4 h-4" />} title="Open POS billing" subtitle="Quick counter sale · ⌘P" />
               <CommandItem onSelect={() => run(() => openView("inventory", { action: "new" }))} icon={<Package className="w-4 h-4" />} title="Add new product" subtitle="Create inventory item" />
               <CommandItem onSelect={() => run(() => openView("parties", { action: "new" }))} icon={<Users className="w-4 h-4" />} title="Add party" subtitle="Customer or supplier" />
             </CommandPrimitive.Group>

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { IndianRupee } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Printer, Download, Share2, ArrowLeft, Trash2, CheckCircle2, Clock, X, Wallet, MessageCircle, Copy } from "lucide-react";
 import { toast } from "sonner";
@@ -39,8 +40,10 @@ export function InvoiceViewer({ invoiceId, onBack, onDeleted }: { invoiceId: str
 
   const handlePrint = () => window.print();
 
+  const [cancelOpen, setCancelOpen] = React.useState(false);
+
   const handleDelete = async () => {
-    if (!confirm("Cancel this invoice? Stock will be restored and payments removed.")) return;
+    setCancelOpen(false);
     setDeleting(true);
     try {
       await api(`/api/invoices/${invoiceId}`, { method: "DELETE" });
@@ -104,7 +107,7 @@ export function InvoiceViewer({ invoiceId, onBack, onDeleted }: { invoiceId: str
               <Wallet className="w-4 h-4" /> <span className="hidden sm:inline">Collect Payment</span>
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={handleDelete} disabled={deleting || isCancelled} className="gap-1.5 h-9 text-destructive hover:text-destructive">
+          <Button variant="outline" size="sm" onClick={() => setCancelOpen(true)} disabled={deleting || isCancelled} className="gap-1.5 h-9 text-destructive hover:text-destructive">
             <Trash2 className="w-4 h-4" /> <span className="hidden sm:inline">Cancel</span>
           </Button>
         </div>
@@ -331,6 +334,24 @@ export function InvoiceViewer({ invoiceId, onBack, onDeleted }: { invoiceId: str
         invoice={inv}
         onPaid={() => { reload(); setPayOpen(false); }}
       />
+
+      {/* Cancel invoice confirmation */}
+      <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this invoice?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will restore stock for all items and remove all linked payments. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Invoice</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              Yes, Cancel Invoice
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

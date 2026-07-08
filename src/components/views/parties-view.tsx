@@ -24,7 +24,7 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import {
   Plus, Search, Users, UserPlus, IndianRupee, Phone, MapPin, Mail,
-  Pencil, TrendingUp, TrendingDown, Wallet, UserCheck, Building2, X,
+  Pencil, TrendingUp, TrendingDown, Wallet, UserCheck, Building2, X, Download,
 } from "lucide-react";
 import { INDIAN_STATES, stateCodeFromGstin, isValidGstin } from "@/lib/gst";
 import { useAppStore } from "@/lib/store";
@@ -84,9 +84,14 @@ function PartiesList() {
           <h1 className="text-xl sm:text-[22px] font-bold tracking-tight">Parties</h1>
           <p className="text-[12.5px] text-muted-foreground mt-0.5">Customers & suppliers with live outstanding balances</p>
         </div>
-        <Button onClick={() => { setEditParty(null); setFormOpen(true); }} className="gap-1.5 h-9 bg-primary hover:bg-primary/90" data-testid="add-party-btn">
-          <UserPlus className="w-4 h-4" /> Add Party
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => exportPartiesCSV(parties)}>
+            <Download className="w-4 h-4" /> <span className="hidden sm:inline">Export</span>
+          </Button>
+          <Button onClick={() => { setEditParty(null); setFormOpen(true); }} className="gap-1.5 h-9 bg-primary hover:bg-primary/90" data-testid="add-party-btn">
+            <UserPlus className="w-4 h-4" /> Add Party
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -271,4 +276,15 @@ function Field({ label, hint, hintTone, children, className }: { label: string; 
       {hint && <p className={cn("text-[11px]", hintTone === "error" ? "text-destructive" : "text-muted-foreground")}>{hint}</p>}
     </div>
   );
+}
+
+function exportPartiesCSV(parties: any[]) {
+  if (!parties.length) return;
+  const headers = ["Name", "Type", "Phone", "GSTIN", "City", "State", "Outstanding", "Credit Limit", "Credit Days"];
+  const rows = parties.map(p => [p.name, p.type, p.phone || "", p.gstin || "", p.city || "", p.state || "", p.outstanding, p.creditLimit, p.creditDays]);
+  const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = `parties_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  URL.revokeObjectURL(url);
 }

@@ -24,7 +24,7 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import {
   Plus, Search, Package, AlertTriangle, PackageX, Boxes, Barcode,
-  Pencil, Minus, PlusCircle, Trash2, X, IndianRupee, Scan,
+  Pencil, Minus, PlusCircle, Trash2, X, IndianRupee, Scan, Download,
 } from "lucide-react";
 
 interface Product {
@@ -99,9 +99,14 @@ export function InventoryView() {
           <h1 className="text-xl sm:text-[22px] font-bold tracking-tight">Inventory & Products</h1>
           <p className="text-[12.5px] text-muted-foreground mt-0.5">Manage stock, prices, barcodes & GST rates</p>
         </div>
-        <Button onClick={() => { setEditProduct(null); setFormOpen(true); }} className="gap-1.5 h-9 bg-primary hover:bg-primary/90" data-testid="add-product-btn">
-          <Plus className="w-4 h-4" /> Add Product
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => exportProductsCSV(filtered)}>
+            <Download className="w-4 h-4" /> <span className="hidden sm:inline">Export</span>
+          </Button>
+          <Button onClick={() => { setEditProduct(null); setFormOpen(true); }} className="gap-1.5 h-9 bg-primary hover:bg-primary/90" data-testid="add-product-btn">
+            <Plus className="w-4 h-4" /> Add Product
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -398,4 +403,15 @@ function ToggleRow({ label, desc, checked, onChange }: { label: string; desc: st
       <Switch checked={checked} onCheckedChange={onChange} />
     </div>
   );
+}
+
+function exportProductsCSV(products: any[]) {
+  if (!products.length) return;
+  const headers = ["Name", "SKU", "Barcode", "HSN", "Category", "Stock", "Sale Price", "Purchase Price", "MRP", "GST Rate", "Stock Value"];
+  const rows = products.map(p => [p.name, p.sku || "", p.barcode || "", p.hsn || "", p.categoryName || "", p.stock, p.salePrice, p.purchasePrice, p.mrp, p.taxRate + "%", (p.stock * p.salePrice).toFixed(2)]);
+  const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = `products_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  URL.revokeObjectURL(url);
 }

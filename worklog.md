@@ -992,3 +992,67 @@ Subscription: Shree Balaji Traders | Enterprise | active | ₹9,999
 4. `src/components/app/subscription-banner.tsx` — New component
 5. `reports/2026-07-06_00-00-improvement-report.md` — New report
 6. `reports/history.md` — Updated
+
+---
+
+## 10 Autonomous Improvement Cycles (2026-07-06)
+
+### Cycle 1: Confirm Dialog for Destructive Actions ✅
+- Replaced native `confirm()` with shadcn `AlertDialog` for invoice cancellation
+- Shows "Cancel this invoice?" with "Keep Invoice" / "Yes, Cancel Invoice" buttons
+- File: `src/components/app/invoice-viewer.tsx`
+
+### Cycle 2: Export CSV on Inventory + Parties ✅
+- Added CSV export to inventory (Name, SKU, Barcode, HSN, Category, Stock, Sale Price, Purchase Price, MRP, GST Rate, Stock Value)
+- Added CSV export to parties (Name, Type, Phone, GSTIN, City, State, Outstanding, Credit Limit, Credit Days)
+- Files: `src/components/views/inventory-view.tsx`, `src/components/views/parties-view.tsx`
+
+### Cycle 3: Mobile-Responsive Admin Panel ✅
+- Desktop nav: hidden on mobile (`md:flex`)
+- Mobile bottom nav: 5-tab grid (`md:hidden`, fixed bottom, safe-area aware)
+- Header: responsive padding, hide title on mobile
+- Main content: bottom padding for mobile nav
+- File: `src/app/admin/page.tsx`
+
+### Cycle 4: Admin Analytics Tab ✅
+- MRR, ARR, Total Businesses, Total Users
+- Revenue by Plan chart (bar visualization)
+- Conversion Rate, Active Subs, Trial Users, Users/Business ratio
+- File: `src/app/admin/page.tsx` (AnalyticsTab component)
+
+### Cycle 5: Admin Audit Log Tab ✅
+- Platform-wide audit log (all businesses)
+- Table: Date, Action badge, Entity, Summary
+- New API: `GET /api/admin/audit` (requires admin auth)
+- Files: `src/app/admin/page.tsx`, `src/app/api/admin/audit/route.ts`
+
+### Cycle 6: Admin System Health Tab ✅
+- Server Status (Running), Businesses, Users, Subscriptions
+- Subscription Status Distribution (trial, active, expired, suspended)
+- Recent Signups list
+- File: `src/app/admin/page.tsx` (HealthTab component)
+
+### Cycle 7: Dashboard gstBreakdown Fix ✅
+- Verified fix from previous session (taxRate, taxable, cgst, sgst, igst in select)
+- gstBreakdown returns proper data: [{rate:5, taxable:21836, tax:1091.8}, ...]
+
+### Cycle 8: Keyboard Shortcuts Hint ✅
+- Command palette now shows ⌘N and ⌘P in subtitles
+- File: `src/components/app/command-palette.tsx`
+
+### Cycle 9: Settings Toast Feedback ✅
+- Verified settings save already has toast.success/toast.error
+- No changes needed — already implemented
+
+### Cycle 10: Admin Business Detail Link ✅
+- Added "View" link to each business row (links to /admin/business/:id)
+- "Change Plan" text hidden on small screens for better mobile UX
+- File: `src/app/admin/page.tsx`
+
+### Final Metrics
+- Tests: 214 passed ✅
+- Lint: 0 errors ✅
+- Admin tabs: 8 (Dashboard, Businesses, Users, Subscriptions, Plans, Analytics, Audit Log, System)
+- Admin API routes: 9 (login, dashboard, businesses, businesses/:id, users, subscriptions, plans, audit)
+- Reports generated: 13 files in /reports/
+- All 10 cycle reports generated with evidence

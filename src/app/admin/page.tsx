@@ -105,14 +105,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
-  React.useEffect(() => {
-    if (tab === "dashboard") loadDashboard();
-    if (tab === "businesses") loadBusinesses();
-    if (tab === "users") loadUsers();
-    if (tab === "subscriptions") loadSubscriptions();
-    if (tab === "plans") loadPlans();
-  }, [tab]);
-
   const loadDashboard = async () => {
     setLoading(true);
     try { setData(await api("/api/admin/dashboard")); } catch (e: any) { toast.error(e.message); }
@@ -145,22 +137,55 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { key: "users", label: "Users", icon: Users },
     { key: "subscriptions", label: "Subscriptions", icon: CreditCard },
     { key: "plans", label: "Plans", icon: DollarSign },
+    { key: "analytics", label: "Analytics", icon: TrendingUp },
+    { key: "audit", label: "Audit Log", icon: AlertCircle },
+    { key: "health", label: "System", icon: CheckCircle2 },
   ] as const;
+
+  const [auditData, setAuditData] = React.useState<any>(null);
+  const [healthData, setHealthData] = React.useState<any>(null);
+
+  const loadAudit = async () => {
+    setLoading(true);
+    try { setAuditData(await api("/api/admin/audit")); } catch (e: any) { toast.error(e.message); }
+    finally { setLoading(false); }
+  };
+  const loadHealth = async () => {
+    setLoading(true);
+    try {
+      const dash = await api("/api/admin/dashboard");
+      setHealthData(dash);
+    } catch (e: any) { toast.error(e.message); }
+    finally { setLoading(false); }
+  };
+
+  // Update useEffect
+  React.useEffect(() => {
+    if (tab === "dashboard") loadDashboard();
+    if (tab === "businesses") loadBusinesses();
+    if (tab === "users") loadUsers();
+    if (tab === "subscriptions") loadSubscriptions();
+    if (tab === "plans") loadPlans();
+    if (tab === "analytics") loadDashboard(); // reuse dashboard data for analytics
+    if (tab === "audit") loadAudit();
+    if (tab === "health") loadHealth();
+  }, [tab]);
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Admin header */}
-      <header className="sticky top-0 z-20 h-16 glass border-b border-border/50 flex items-center gap-4 px-5">
-        <div className="flex items-center gap-2.5">
+      {/* Admin header — responsive */}
+      <header className="sticky top-0 z-20 h-16 glass border-b border-border/50 flex items-center gap-2 sm:gap-4 px-3 sm:px-5">
+        <div className="flex items-center gap-2.5 shrink-0">
           <div className="grid place-items-center w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-800 text-white">
             <Shield className="w-4 h-4" />
           </div>
-          <div>
+          <div className="hidden sm:block">
             <h1 className="text-[15px] font-bold">MedBill Admin</h1>
             <p className="text-[10px] text-muted-foreground">Super Admin Panel</p>
           </div>
         </div>
-        <nav className="flex items-center gap-1 ml-8">
+        {/* Desktop nav */}
+        <nav className="hidden md:flex items-center gap-1 ml-4 sm:ml-8">
           {tabs.map(t => {
             const Icon = t.icon;
             return (
@@ -187,12 +212,25 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={onLogout} className="gap-1.5 h-9 text-muted-foreground">
-            <LogOut className="w-4 h-4" /> Logout
+            <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Logout</span>
           </Button>
         </div>
       </header>
 
-      <main className="p-5 sm:p-7 max-w-[1400px] mx-auto">
+      {/* Mobile bottom nav for admin */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 glass border-t border-border/60 h-16 grid grid-cols-5" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        {tabs.map(t => {
+          const Icon = t.icon;
+          return (
+            <button key={t.key} onClick={() => setTab(t.key)} className={cn("flex flex-col items-center justify-center gap-1 text-[10px] font-medium", tab === t.key ? "text-primary" : "text-muted-foreground")}>
+              <Icon className="w-5 h-5" strokeWidth={tab === t.key ? 2.4 : 2} />
+              <span className="truncate">{t.label.split(" ")[0]}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <main className="p-5 sm:p-7 max-w-[1400px] mx-auto pb-24 md:pb-7">
         {loading ? (
           <div className="space-y-4">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -211,6 +249,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           <SubscriptionsTab data={data} />
         ) : tab === "plans" ? (
           <PlansTab data={data} />
+        ) : tab === "analytics" ? (
+          <AnalyticsTab data={data} />
+        ) : tab === "audit" ? (
+          <AuditTab data={auditData} />
+        ) : tab === "health" ? (
+          <HealthTab data={healthData} />
         ) : null}
       </main>
     </div>
@@ -370,8 +414,11 @@ function BusinessesTab({ data, onAction }: { data: any; onAction: () => void }) 
                     </div>
                   ) : (
                     <div className="flex gap-1 justify-end">
+                      <a href={`/admin/business/${b.id}`} className="hidden sm:flex items-center gap-1 px-2 h-7 rounded text-[11px] text-muted-foreground hover:bg-muted">
+                        <Building2 className="w-3 h-3" /> View
+                      </a>
                       <Button size="sm" variant="ghost" className="h-7 text-[11px] text-emerald-600" onClick={() => { setSelectedBiz(b.id); setSelectedPlan(""); }}>
-                        <CreditCard className="w-3 h-3" /> Change Plan
+                        <CreditCard className="w-3 h-3" /> <span className="hidden lg:inline">Change Plan</span>
                       </Button>
                       {b.subscription?.status !== "suspended" ? (
                         <Button size="sm" variant="ghost" className="h-7 text-[11px] text-red-600" onClick={() => handleAction(b.id, "suspend")}>
@@ -527,4 +574,135 @@ function StatusBadge({ status }: { status: string }) {
     grace: "bg-amber-500/12 text-amber-700", active_user: "bg-emerald-500/12 text-emerald-700",
   };
   return <span className={cn("inline-block text-[10px] font-semibold px-2 py-0.5 rounded-md capitalize", map[status] || "bg-muted text-muted-foreground")}>{status}</span>;
+}
+
+function AnalyticsTab({ data }: { data: any }) {
+  if (!data) return null;
+  const m = data.metrics;
+  const conversionRate = m.totalBusinesses > 0 ? ((m.activeSubscriptions / m.totalBusinesses) * 100).toFixed(1) : "0";
+  return (
+    <div className="space-y-5">
+      <h2 className="text-lg font-bold">Platform Analytics</h2>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <AdminStat icon={TrendingUp} label="MRR (Monthly)" value={`₹${m.monthlyRevenue.toLocaleString("en-IN")}`} accent="emerald" />
+        <AdminStat icon={DollarSign} label="ARR (Annual)" value={`₹${m.totalRevenue.toLocaleString("en-IN")}`} accent="primary" />
+        <AdminStat icon={Building2} label="Total Businesses" value={String(m.totalBusinesses)} accent="amber" />
+        <AdminStat icon={Users} label="Total Users" value={String(m.totalUsers)} accent="purple" />
+      </div>
+      <Card className="p-5 shadow-card border-border/50">
+        <h3 className="text-[15px] font-semibold mb-4">Revenue by Plan</h3>
+        <div className="space-y-3">
+          {data.planDistribution.map((p: any) => (
+            <div key={p.plan} className="flex items-center gap-4">
+              <div className="w-32">
+                <span className="text-[13px] font-medium">{p.plan}</span>
+                <span className="text-[11px] text-muted-foreground block">₹{p.price}/year</span>
+              </div>
+              <div className="flex-1 h-8 rounded-lg bg-muted/40 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 flex items-center justify-end px-2" style={{ width: `${Math.max(p.count * 20, 5)}%` }}>
+                  <span className="text-[11px] font-bold text-white">{p.count}</span>
+                </div>
+              </div>
+              <div className="w-24 text-right text-[12px] font-semibold tnum">₹{p.revenue.toLocaleString("en-IN")}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card className="p-5 shadow-card border-border/50">
+        <h3 className="text-[15px] font-semibold mb-4">Key Metrics</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="rounded-xl border border-border/50 p-3 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Conversion Rate</p>
+            <p className="text-[20px] font-bold tnum mt-1">{conversionRate}%</p>
+          </div>
+          <div className="rounded-xl border border-border/50 p-3 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Active Subs</p>
+            <p className="text-[20px] font-bold tnum mt-1">{m.activeSubscriptions}</p>
+          </div>
+          <div className="rounded-xl border border-border/50 p-3 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Trial Users</p>
+            <p className="text-[20px] font-bold tnum mt-1">{m.trialSubscriptions}</p>
+          </div>
+          <div className="rounded-xl border border-border/50 p-3 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Users/Business</p>
+            <p className="text-[20px] font-bold tnum mt-1">{m.totalBusinesses > 0 ? (m.totalUsers / m.totalBusinesses).toFixed(1) : "0"}</p>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function AuditTab({ data }: { data: any }) {
+  if (!data) return <div className="text-center py-10 text-muted-foreground">Loading audit log...</div>;
+  const items = data?.items ?? [];
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold">Platform Audit Log</h2>
+      <Card className="shadow-card border-border/50 overflow-hidden">
+        <table className="w-full text-[12.5px]">
+          <thead>
+            <tr className="text-[10.5px] uppercase tracking-wider text-muted-foreground border-b border-border/50 bg-muted/20">
+              <th className="text-left font-semibold px-4 py-2.5">Date</th>
+              <th className="text-left font-semibold px-2 py-2.5">Action</th>
+              <th className="text-left font-semibold px-2 py-2.5 hidden sm:table-cell">Entity</th>
+              <th className="text-left font-semibold px-2 py-2.5">Summary</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((a: any) => (
+              <tr key={a.id} className="border-b border-border/30 hover:bg-muted/20">
+                <td className="px-4 py-2.5 text-muted-foreground tnum whitespace-nowrap">{new Date(a.createdAt).toLocaleString("en-IN")}</td>
+                <td className="px-2 py-2.5"><StatusBadge status={a.action} /></td>
+                <td className="px-2 py-2.5 hidden sm:table-cell text-muted-foreground">{a.entity}</td>
+                <td className="px-2 py-2.5">{a.summary || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {items.length === 0 && <div className="py-10 text-center text-muted-foreground text-[13px]">No audit entries found</div>}
+      </Card>
+    </div>
+  );
+}
+
+function HealthTab({ data }: { data: any }) {
+  if (!data) return <div className="text-center py-10 text-muted-foreground">Loading system health...</div>;
+  const m = data.metrics;
+  return (
+    <div className="space-y-5">
+      <h2 className="text-lg font-bold">System Health</h2>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <AdminStat icon={CheckCircle2} label="Server Status" value="Running" accent="emerald" />
+        <AdminStat icon={Building2} label="Businesses" value={String(m.totalBusinesses)} accent="primary" />
+        <AdminStat icon={Users} label="Users" value={String(m.totalUsers)} accent="amber" />
+        <AdminStat icon={CreditCard} label="Subscriptions" value={String(m.activeSubscriptions)} accent="purple" />
+      </div>
+      <Card className="p-5 shadow-card border-border/50">
+        <h3 className="text-[15px] font-semibold mb-4">Subscription Status Distribution</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {Object.entries(data.statusCounts || {}).map(([status, count]) => (
+            <div key={status} className="rounded-xl border border-border/50 p-3 text-center">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{status}</p>
+              <p className="text-[20px] font-bold tnum mt-1">{String(count)}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card className="p-5 shadow-card border-border/50">
+        <h3 className="text-[15px] font-semibold mb-4">Recent Signups</h3>
+        <div className="space-y-2">
+          {(data.recentBusinesses || []).map((b: any) => (
+            <div key={b.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40">
+              <div>
+                <span className="text-[13px] font-medium">{b.name}</span>
+                <span className="text-[11px] text-muted-foreground ml-2 capitalize">{b.industry}</span>
+              </div>
+              <span className="text-[11px] text-muted-foreground">{new Date(b.createdAt).toLocaleDateString("en-IN")}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
 }
