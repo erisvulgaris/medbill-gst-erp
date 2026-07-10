@@ -66,3 +66,4 @@ screenshot-*.png
 keepalive.log
 .keepalive.log
 .dev.pid
+.github/workflows/
