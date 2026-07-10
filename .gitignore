@@ -52,3 +52,17 @@ prompt
 server.log
 # Skills directory
 /skills/
+# MedBill secrets
+.env
+.env.local
+.env.production
+dev.log
+server.log
+db/*.db
+db/backups/
+screenshot-*.png
+/tmp/
+.zscripts/
+keepalive.log
+.keepalive.log
+.dev.pid
