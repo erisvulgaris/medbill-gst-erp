@@ -1,0 +1,212 @@
+# MedBill CI/CD Pipeline
+# Every pull request must pass all jobs before merge.
+# See: docs/18_RELEASE_PROCESS.md, docs/16_TESTING_GUIDE.md
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  DATABASE_URL: "file:./test.db"
+  NODE_ENV: test
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Code Quality
+  # ─────────────────────────────────────────────
+  lint:
+    name: ESLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+
+  typecheck:
+    name: TypeScript Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc --noEmit
+
+  # ─────────────────────────────────────────────
+  # Testing
+  # ─────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests + Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run test:coverage
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx prisma generate
+      - run: bunx prisma db push --force-reset
+        env:
+          DATABASE_URL: "file:./test.db"
+      # TODO: Add integration test runner when tests are written
+      - run: echo "Integration tests placeholder — add when test DB setup is automated"
+
+  # ─────────────────────────────────────────────
+  # Build Verification
+  # ─────────────────────────────────────────────
+  build:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx prisma generate
+      - run: bun run build
+        env:
+          DATABASE_URL: "file:./test.db"
+      - name: Verify build output
+        run: |
+          test -d .next/standalone || (echo "❌ Standalone build missing" && exit 1)
+          echo "✅ Build succeeded"
+
+  # ─────────────────────────────────────────────
+  # Bundle Size Analysis
+  # ─────────────────────────────────────────────
+  bundle-analysis:
+    name: Bundle Size
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Analyze bundle
+        run: |
+          echo "Bundle analysis placeholder — install @next/bundle-analyzer"
+          echo "Budget: <200KB dashboard, <150KB other routes"
+          # TODO: ANALYZE=true bun run build when analyzer installed
+
+  # ─────────────────────────────────────────────
+  # Security
+  # ─────────────────────────────────────────────
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Dependency audit
+        run: bun audit || true  # Don't fail on advisories yet
+      - name: Check for secrets
+        run: |
+          # Basic secret scanning — no API keys in source
+          ! grep -rn "sk_live_\|sk_test_\|AKIA\|ghp_" src/ --include="*.ts" --include="*.tsx" || \
+          (echo "❌ Potential secret found in source" && exit 1)
+          echo "✅ No secrets detected"
+
+  # ─────────────────────────────────────────────
+  # Database Health
+  # ─────────────────────────────────────────────
+  db-health:
+    name: Database Health Check
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx prisma generate
+      - run: bunx prisma db push --force-reset
+        env:
+          DATABASE_URL: "file:./test.db"
+      - run: bun run db:health
+        env:
+          DATABASE_URL: "file:./test.db"
+
+  # ─────────────────────────────────────────────
+  # E2E (Playwright) — placeholder
+  # ─────────────────────────────────────────────
+  e2e:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: false  # Disabled until Playwright is installed
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      # TODO: Install Playwright, write e2e tests, enable this job
+      - run: echo "Playwright e2e — not yet implemented"
+
+  # ─────────────────────────────────────────────
+  # Lighthouse CI — placeholder
+  # ─────────────────────────────────────────────
+  lighthouse:
+    name: Lighthouse CI
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: false  # Disabled until LHCI is configured
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Lighthouse CI — not yet configured"
+
+  # ─────────────────────────────────────────────
+  # Gate — all jobs must pass
+  # ─────────────────────────────────────────────
+  gate:
+    name: All Checks Pass
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, unit-tests, build, security-scan, db-health]
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" || \
+                "${{ needs.typecheck.result }}" != "success" || \
+                "${{ needs.unit-tests.result }}" != "success" || \
+                "${{ needs.build.result }}" != "success" || \
+                "${{ needs.security-scan.result }}" != "success" || \
+                "${{ needs.db-health.result }}" != "success" ]]; then
+            echo "❌ One or more required jobs failed"
+            exit 1
+          fi
+          echo "✅ All required jobs passed"
