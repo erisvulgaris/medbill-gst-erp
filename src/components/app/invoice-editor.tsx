@@ -19,6 +19,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Trash2, Plus, Search, Check, ChevronsUpDown, Package, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { QuickCreateCustomer, QuickCreateProduct } from "@/components/app/quick-create";
 
 interface Product {
   id: string; name: string; sku?: string | null; barcode?: string | null;
@@ -228,6 +229,7 @@ export function InvoiceEditor({ onSaved, onCancel }: InvoiceEditorProps) {
                     </CommandGroup>
                   </CommandList>
                 </Command>
+                <QuickCreateCustomer type="customer" onCreated={(p) => { setParties(prev => [...prev, p]); setParty(p); setPartyOpen(false); }} />
               </PopoverContent>
             </Popover>
           ) : (
@@ -281,7 +283,7 @@ export function InvoiceEditor({ onSaved, onCancel }: InvoiceEditorProps) {
               <Command shouldFilter={false}>
                 <CommandInput placeholder="Type to search products…" value={productQuery} onValueChange={setProductQuery} autoFocus />
                 <CommandList className="max-h-80">
-                  <CommandEmpty>No product. Add one in Inventory.</CommandEmpty>
+                  <CommandEmpty>No product found. Create one below ↓</CommandEmpty>
                   <CommandGroup>
                     {filteredProducts.map((p) => (
                       <CommandItem key={p.id} onSelect={() => addProduct(p)} className="gap-3">
@@ -298,6 +300,7 @@ export function InvoiceEditor({ onSaved, onCancel }: InvoiceEditorProps) {
                   </CommandGroup>
                 </CommandList>
               </Command>
+              <QuickCreateProduct onCreated={(p) => { setProducts(prev => [...prev, p]); addProduct(p); setProductOpen(false); setProductQuery(""); }} />
             </PopoverContent>
           </Popover>
           <Button variant="ghost" size="sm" onClick={addBlankLine} className="h-9 gap-1.5 text-muted-foreground">

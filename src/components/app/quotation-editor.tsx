@@ -17,6 +17,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Trash2, Plus, Search, Check, ChevronsUpDown, Package, X, Loader2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { QuickCreateCustomer, QuickCreateProduct } from "@/components/app/quick-create";
 
 interface Product {
   id: string; name: string; sku?: string | null; barcode?: string | null;
@@ -153,6 +154,7 @@ export function QuotationEditor({ onSaved, onCancel }: { onSaved: (id: string) =
                     </CommandGroup>
                   </CommandList>
                 </Command>
+                <QuickCreateCustomer type="customer" onCreated={(p) => { setParties(prev => [...prev, p]); setParty(p); setPartyOpen(false); }} />
               </PopoverContent>
             </Popover>
           ) : (
@@ -199,6 +201,7 @@ export function QuotationEditor({ onSaved, onCancel }: { onSaved: (id: string) =
                   </CommandGroup>
                 </CommandList>
               </Command>
+              <QuickCreateProduct onCreated={(p) => { setProducts(prev => [...prev, p]); addProduct(p); setProductOpen(false); setProductQuery(""); }} />
             </PopoverContent>
           </Popover>
           <Button variant="ghost" size="sm" onClick={addBlankLine} className="h-9 gap-1.5 text-muted-foreground"><Plus className="w-4 h-4" /> Blank line</Button>
