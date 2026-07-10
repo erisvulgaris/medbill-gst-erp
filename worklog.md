@@ -1056,3 +1056,50 @@ Subscription: Shree Balaji Traders | Enterprise | active | ₹9,999
 - Admin API routes: 9 (login, dashboard, businesses, businesses/:id, users, subscriptions, plans, audit)
 - Reports generated: 13 files in /reports/
 - All 10 cycle reports generated with evidence
+
+---
+
+## Enhancement: Create-on-the-Fly in All Editors (2026-07-06)
+
+### Problem
+Users couldn't create new customers, suppliers, or products while making invoices, quotations, or purchase orders. They had to leave the form, go to Parties/Inventory, create the record, come back, and search again.
+
+### Solution
+Created a reusable `QuickCreate` component with two sub-components:
+1. **QuickCreateCustomer** — Inline form (name, phone, GSTIN) that creates a customer/supplier via POST /api/parties
+2. **QuickCreateProduct** — Inline form (name, price, GST rate) that creates a product via POST /api/products
+
+### Where It's Integrated
+
+| Editor | Customer/Supplier Create | Product Create |
+|--------|--------------------------|----------------|
+| Invoice Editor | ✅ "Create New Customer" in party picker | ✅ "Create New Product" in product picker |
+| Quotation Editor | ✅ "Create New Customer" in party picker | ✅ "Create New Product" in product picker |
+| Purchase Form | ✅ "Create New Supplier" in supplier picker | ✅ "Create New Product" in product picker |
+| POS | N/A (walk-in customer) | ✅ Already has live search (name, barcode, SKU) |
+
+### How It Works
+1. User opens the party/product picker popover
+2. Types to search — if no results, sees "Create one below ↓"
+3. Clicks "Create New Customer/Product" button at bottom of popover
+4. Inline form appears (name, phone/GSTIN for parties; name, price, GST for products)
+5. Fills in details and clicks "Create"
+6. New record is created via API, added to the local list, and automatically selected/added
+7. User continues with their invoice/quotation/purchase without leaving the form
+
+### Verified
+- Invoice Editor: "Create New Customer" ✅, "Create New Product" ✅
+- 0 console errors ✅
+- 214 tests passing ✅
+- 0 lint errors ✅
+
+### Files Modified
+1. `src/components/app/quick-create.tsx` — New: QuickCreateCustomer + QuickCreateProduct components
+2. `src/components/app/invoice-editor.tsx` — Added QuickCreate to party + product pickers
+3. `src/components/app/quotation-editor.tsx` — Added QuickCreate to party + product pickers
+4. `src/components/views/purchases-view.tsx` — Added QuickCreate to supplier + product pickers
+
+### Pushed to GitHub
+- Repository: https://github.com/erisvulgaris/medbill-gst-erp
+- Commit: "Enhancement: Create customers, suppliers, products on-the-fly in all editors"
+- All changes pushed successfully ✅
