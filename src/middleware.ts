@@ -6,7 +6,10 @@ export function middleware(req: NextRequest) {
   const requestId = req.headers.get("x-request-id") || crypto.randomUUID();
   if (["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) {
     const origin = req.headers.get("origin");
-    const allowed = [process.env.NEXT_PUBLIC_APP_URL, req.nextUrl.origin].filter(Boolean);
+    const proto = req.headers.get("x-forwarded-proto") || req.nextUrl.protocol.replace(":", "");
+    const host = req.headers.get("x-forwarded-host") || req.nextUrl.host;
+    const forwardedOrigin = `${proto}://${host}`;
+    const allowed = [process.env.NEXT_PUBLIC_APP_URL, req.nextUrl.origin, forwardedOrigin].filter(Boolean);
     if (origin && !allowed.includes(origin)) return new NextResponse(JSON.stringify({ success: false, error: { code: "FORBIDDEN", message: "CSRF: Origin not allowed" }, meta: { requestId } }), { status: 403, headers: { "Content-Type": "application/json", "x-request-id": requestId } });
   }
   const res = NextResponse.next();
