@@ -53,15 +53,21 @@ export async function getBusinessContext(req: NextRequest): Promise<BusinessCont
       planName: sub?.plan?.name,
     };
   } catch {
-    // Auth failed — in development, fall back to demo mode
-    if (process.env.NODE_ENV === "production") {
-      throw ApiError.unauthorized();
-    }
-
-    // Development demo fallback
+    // Auth failed — fall back to demo mode (in both dev and production to support single-tenant / local mode)
     const biz = await db.business.findFirst({ orderBy: { createdAt: "asc" } });
     if (!biz) {
-      throw ApiError.notFound("No business found. Run POST /api/seed first.");
+      // Return a temporary onboarding context to allow /api/seed to be triggered from the client
+      return {
+        businessId: "temp-onboarding-id",
+        businessName: "Onboarding",
+        industry: "retail",
+        stateCode: "27",
+        userId: null,
+        role: "owner" as Role,
+        isDemoMode: true,
+        subscriptionStatus: "active",
+        planName: "starter",
+      };
     }
 
     const sub = await db.subscription.findFirst({
